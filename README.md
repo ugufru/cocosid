@@ -11,7 +11,8 @@ wavetable sound through the CoCo's 6-bit DAC.
 | `COCOSID2.DSK` | Original disk image: 35 tracks, single sided, Disk BASIC (RS-DOS) |
 | `files/COCOSID.BIN` | The only live file on the disk: a LOADM binary, exec `$4800` |
 | `files/deleted/` | Six files recovered from deleted directory entries and free granules |
-| `cocosid.asm` | Disassembly of `COCOSID.BIN`, in lwasm syntax |
+| `cocosid.asm` | Commented disassembly of `COCOSID.BIN`, in lwasm syntax (generated) |
+| `cocosid.ann` | Labels, symbols and comments merged into `cocosid.asm` |
 | `tools/decb_extract.py` | Extracts the live files from a Disk BASIC `.DSK` image |
 | `tools/dis6809.py` | Code-tracing 6809 disassembler for LOADM binaries |
 
@@ -45,14 +46,22 @@ lwasm --format=decb -o COCOSID.BIN cocosid.asm
 cmp COCOSID.BIN files/COCOSID.BIN
 ```
 
-To regenerate it, use the command recorded at the top of `cocosid.asm`. The
-options matter:
+The labels, symbols and comments live in `cocosid.ann`, not in the listing,
+so edit that file and regenerate:
 
-- `--dp 48`: the program sets DP to `$48` at startup, so direct-page
+```sh
+python3 tools/dis6809.py -a cocosid.ann files/COCOSID.BIN > cocosid.asm
+```
+
+The directive format is documented in the `Annotations` class in
+`tools/dis6809.py`. Besides labels and comments, the file carries options
+the trace needs:
+
+- `dp 48`: the program sets DP to `$48` at startup, so direct-page
   operands refer to its variables at `$48xx`.
-- `--dp-at 494C-4981=49`: the sample loop switches DP to `$49` so it can
+- `dp-at 494C-4983 49`: the sample loop switches DP to `$49` so it can
   patch its own instructions cheaply.
-- `-e 49F7 ... -e 4A07`: entries of the sequencer's command jump table,
+- `entry 49F7 ... 4A07`: entries of the sequencer's command jump table,
   which is reached through an indirect `JMP [$4806]`.
 
 ### Memory map

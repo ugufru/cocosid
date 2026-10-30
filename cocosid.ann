@@ -1,0 +1,501 @@
+# Annotations for COCOSID.BIN. Regenerate the listing with:
+#   python3 tools/dis6809.py -a cocosid.ann files/COCOSID.BIN > cocosid.asm
+# Directive reference: the Annotations class in tools/dis6809.py.
+
+# ------------------------------------------------------------- options
+dp 48
+dp-at 494C-4983 49
+entry 49F7 49F9 49FB 49FD 49FF 4A01 4A03 4A05 4A07
+ptrs 4B7D-4BAC
+words 532D-542C
+ptrs 553B-55A0
+
+# ------------------------------------------------------------- header
+header CoCoSID: a three-voice, SID-style music player for the TRS-80 Color
+header Computer. All sound is made in software: three wavetable oscillators
+header are summed and written to the 6-bit DAC at $FF20. Interrupts stay off;
+header all timing comes from instruction cycle counts.
+header
+header Timing (0.895 MHz CPU):
+header   sample      77 cycles, so about 11.6 kHz
+header   mixer pass  227 samples, about 20 ms; one envelope frame
+header   tick        one sequencer step plus three mixer passes, about 60 ms
+header
+header Song data:
+header   song list   one per voice, one pattern number per byte. 0 stops the
+header               voice, $FF restarts the whole song.
+header   pattern     a stream of commands; see CMDTABLE.
+header   instrument  15 frames of 4 bytes, built in RAM at INSTRS by command 2:
+header                 +0  pointer to the middle of a 256-byte wave table
+header                 +2  pitch offset in notes, times 2
+header                 +3  unused
+header               Frames 0-2 are the attack, 3-11 the sustain (looped while
+header               the note is held), 12-14 the release. Volume envelopes
+header               come from switching to half or quarter amplitude waves.
+
+# ------------------------------------------------------------- symbols
+equ V_NOTE   0  ; note number times 2
+equ V_INSTR  1  ; instrument now sounding (2 bytes)
+equ V_IBASE  3  ; instrument selected by the pattern (2 bytes)
+equ V_FRAME  5  ; envelope frame, times 4
+equ V_PATPTR 6  ; next pattern command, 0 = fetch a pattern (2 bytes)
+equ V_SONGPTR 8 ; next song list entry (2 bytes)
+equ V_DUR    10 ; ticks left before the note releases
+equ V_GAP    11 ; ticks of rest left
+equ V_GAPLEN 12 ; rest after the last note, 0 = tied to the next
+equ V_BEND   13 ; pitch bend added to the frequency, voice 1 only (2 bytes)
+equ V_BRATE  15 ; added to V_BEND every mixer pass (2 bytes)
+equ V_SIZE   18 ; size of a voice record
+
+field U 1 V_INSTR
+field U 3 V_IBASE
+field U 5 V_FRAME
+field U 6 V_PATPTR
+field U 8 V_SONGPTR
+field U A V_DUR
+field U B V_GAP
+field U C V_GAPLEN
+field U D V_BEND
+field U F V_BRATE
+
+# RAM outside the loaded image
+label 4815 VOICE1
+label 4827 VOICE2
+label 4839 VOICE3
+label 4BAD INSTRS
+comment 4815 voice records, V_SIZE bytes each (RAM)
+comment 4BAD instruments, 60 bytes each (RAM)
+label 6395 WNOISE
+label 6E95 WOFF
+label 6F95 WSINE2
+label 7095 WSINE4
+label 7195 WSAW2
+label 7295 WSAW4
+label 7395 WTRI2
+label 7495 WTRI4
+label 7595 WPULSE
+label 7695 WPULSE2
+label 7795 WPULSE4
+label 7895 WPWM
+label 7995 WPWM2
+label 7A95 WPWM4
+label 7B95 WEND
+comment 6E95 wave tables built by MAKEWAVES (RAM)
+comment 7B95 end of the wave tables
+
+# operand bytes patched while running
+label 4955 V1_PHASE
+label 4958 V1_FREQ
+label 4961 V2_PHASE
+label 4964 V2_FREQ
+label 496D V3_PHASE
+label 4970 V3_FREQ
+label 4977 V1_SAMPLE
+label 4979 V2_SAMPLE
+
+# wave pointers (each aims at the middle of its table)
+expr 6F15 WOFF+$80
+expr 6C15 WSINE+$80
+expr 6D15 WSAW+$80
+expr 6E15 WTRI+$80
+expr 7615 WPULSE+$80
+expr 7015 WSINE2+$80
+expr 7215 WSAW2+$80
+expr 7415 WTRI2+$80
+expr 7715 WPULSE2+$80
+expr 7115 WSINE4+$80
+expr 7315 WSAW4+$80
+expr 7515 WTRI4+$80
+expr 7815 WPULSE4+$80
+expr 7915 WPWM+$80
+expr 7A15 WPWM2+$80
+expr 7B15 WPWM4+$80
+expr 6415 WNOISE+$080
+expr 6515 WNOISE+$180
+expr 6615 WNOISE+$280
+expr 6715 WNOISE+$380
+expr 6815 WNOISE+$480
+expr 6915 WNOISE+$580
+expr 6A15 WNOISE+$680
+expr 6B15 WNOISE+$780
+
+# ------------------------------------------------------------- globals
+block 4800 Entry point and globals. DP is $48 while the player runs, so these
+block 4800 and the voice records are reached with direct-page addressing.
+label 4803 CMD2COUNT
+label 4806 DISPATCH
+label 480E SAMPCOUNT
+label 480F PWMDIR
+label 4810 PWMPOS
+label 4811 TICKS
+label 4812 SAVED_S
+comment 4803 frame counter for command 2; $4804-$4805 unused
+comment 4806 command handler address (2 bytes); $4808-$480D unused
+comment 480E samples left in this mixer pass
+comment 480F PWM sweep direction: 0 = grow high part
+comment 4810 PWM edge position within WPWM
+comment 4811 tick counter, never read
+comment 4812 S saved by MIXER (2 bytes); $4814 unused
+
+# ------------------------------------------------------------- startup
+label 484B HOOK
+block 484B HOOK: called once at startup; just RTS. The next three bytes are
+block 484B also RTS and are never reached.
+
+label 484F INIT
+block 484F INIT: take over the machine, build the wave tables, then play.
+comment 484F player variables live in page $48
+comment 4853 mask IRQ and FIRQ
+comment 4855 stack below $8000
+comment 4859 disable the HSYNC interrupt
+comment 4861 disable the VSYNC interrupt
+comment 4869 drive motors off
+comment 486C startup hook (just RTS)
+comment 486E build all wave tables
+
+label 4871 RESTART
+block 4871 RESTART: also entered from the sequencer when voice 1's song list
+block 4871 reaches $FF, possibly from inside a subroutine, so the stack is reset.
+comment 4875 set up the DAC and rewind every voice
+
+label 4879 SNDINIT
+block 4879 SNDINIT: enable sound output, then point each voice at the start of
+block 4879 its song list with its counters cleared.
+comment 487E PIA1 CB2 high: sound enable
+comment 4886 PIA1 port A: select the DDR
+comment 4889 dummy read
+comment 488E bits 2-7 (DAC) out, bits 0-1 in
+comment 4893 back to the data register
+comment 4896 voice 1 song list
+comment 489B voice 2 song list
+comment 48A0 voice 3 song list
+comment 48A5 clear durations, rests, patterns and bend
+comment 48C5 rest length 1, so the first note
+comment 48C7 starts its envelope from frame 0
+comment 48CD all voices start on instrument 0
+
+# ------------------------------------------------------------- main loop
+label 48D7 MAINLOOP
+block 48D7 MAINLOOP: one tick. The sequencer runs once and the mixer three
+block 48D7 times, with a PWM step between mixer passes. Never returns.
+comment 48E4 count ticks (never read)
+
+# ------------------------------------------------------------- mixer
+label 48EA MIXER
+block 48EA MIXER: make 227 samples (one envelope frame) from all three voices.
+block 48EA For each voice: read the current instrument frame (wave pointer and
+block 48EA pitch offset), step to the next frame, look up the frequency and
+block 48EA patch it into the sample loop. Voice 1 also applies its pitch bend.
+block 48EA Y, U and S hold the three wave pointers, so S is saved first.
+comment 48EA S becomes voice 3's wave pointer
+comment 48ED voice 1: X = instrument frame
+comment 48F3 Y = voice 1 wave
+comment 48F6 B = frame's pitch offset
+comment 48F8 next frame on the next pass
+comment 48FC frequency of note + offset
+comment 4904 plus pitch bend
+comment 4906 times 2: phase increment
+comment 4908 patch the sample loop
+comment 490B advance the bend
+comment 4911 voice 2, the same without bend
+comment 4917 U = voice 2 wave
+comment 4929 patch the sample loop
+comment 492C voice 3
+comment 4932 S = voice 3 wave
+comment 4945 patch the sample loop
+comment 4948 DP $49: the loop patches itself
+comment 494C with 2-byte direct stores
+comment 494F 227 samples per pass
+
+label 4954 SAMPLOOP
+block 4954 SAMPLOOP: 77 cycles per sample. Each voice's 16-bit phase lives in
+block 4954 the operand of its LDD: add the frequency, store the result back
+block 4954 into the LDD, then index the wave with the phase high byte. A is a
+block 4954 signed index, which is why wave pointers aim at the middle of each
+block 4954 table. Voice 1 and 2 samples are stored into the two ADDB operands,
+block 4954 so the three are summed and sent to the DAC with no extra loads.
+comment 4954 voice 1 phase
+comment 4957 + frequency (from MIXER)
+comment 495A store the new phase
+comment 495C sample = wave[phase high]
+comment 495E into the first ADDB
+comment 4960 voice 2 phase
+comment 4963 + frequency
+comment 4966 store the new phase
+comment 4968 sample
+comment 496A into the second ADDB
+comment 496C voice 3 phase
+comment 496F + frequency
+comment 4972 store the new phase
+comment 4974 voice 3 sample
+comment 4976 + voice 1 sample
+comment 4978 + voice 2 sample
+comment 497A out to the DAC
+comment 4981 back to DP $48
+comment 4985 restore S
+
+# ------------------------------------------------------------- sequencer
+label 4989 HOLD
+block 4989 HOLD: count down a sounding note. While it lasts, loop the envelope
+block 4989 over frames 3-11. When it ends, play the release frames, or stay
+block 4989 in the sustain if the note is tied to the next one.
+comment 4989 (loaded but not used)
+comment 498C one tick less
+comment 4990 reached frame 12?
+comment 4996 loop back to frame 3
+
+label 499B RELEASE
+comment 499B tied (no rest after it)?
+comment 499F tied: stay in sustain
+comment 49A3 release: frames 12-14
+
+label 49A8 REST
+block 49A8 REST: count down a rest, playing instrument 0 (silence).
+comment 49AB instrument 0
+
+label 49B3 SEQUENCER
+block 49B3 SEQUENCER: one tick of the song for each voice. U = voice record.
+
+label 49C2 SEQVOICE
+block 49C2 SEQVOICE: fetch a pattern if the voice has none, then count down
+block 49C2 the current note or rest, or else run pattern commands.
+comment 49C2 current pattern, 0 if none
+
+label 49C6 NEXTPAT
+comment 49C6 read the song list
+comment 49C8 pattern number
+comment 49CA 0: voice finished
+comment 49D0 $FF: restart the song
+
+label 49D2 VOICEDONE
+comment 49D2 stay at frame 0; the song list is not advanced
+
+comment 49D5 save the song pointer
+comment 49D7 look the pattern up
+comment 49E0 note still sounding?
+comment 49E4 rest still running?
+comment 49EA command byte
+comment 49EE index the BRA table
+comment 49F3 handler; X is past the command
+
+label 49F7 CMDTABLE
+block 49F7 CMDTABLE: pattern commands. Command byte n jumps via entry n.
+block 49F7   0                  end of pattern: fetch the next from the song list
+block 49F7   1                  no operation
+block 49F7   2 i (w p) x 15     define instrument i: 15 frames of wave, pitch
+block 49F7   3 n d r            note n: sounds d ticks, then r ticks of release
+block 49F7                      and rest. r = 0 ties it to the next note, which
+block 49F7                      then continues the envelope instead of restarting.
+block 49F7   4, 5, 6 i          select instrument i for the following notes
+block 49F7   7 x hh ll          set the pitch bend (x ignored)
+block 49F7   8 x hh ll          set the bend rate (x ignored)
+block 49F7 Only voice 1 applies bend. Command 3 ends the voice's tick; all the
+block 49F7 others run the next command straight away.
+comment 49F7 0: end of pattern
+comment 49F9 1: no operation
+comment 49FB 2: define instrument
+comment 49FD 3: note
+comment 49FF 4: select instrument
+comment 4A01 5: select instrument
+comment 4A03 6: select instrument
+comment 4A05 7: set pitch bend
+comment 4A07 8: set bend rate
+
+label 4A09 CMDNEXT
+block 4A09 CMDNEXT: save the pattern pointer and run the next command now.
+label 4A0D C_ENDPAT
+label 4A0F C_NOP
+comment 4A0F (A is not used)
+
+label 4A13 C_DEFINS
+block 4A13 C_DEFINS: command 2. Builds instrument i at INSTRS + 60*i. Waves
+block 4A13 16-23 (noise) are pitched down 40 notes.
+comment 4A15 60 bytes per instrument
+comment 4A1F 15 frames
+comment 4A23 A = wave, B = pitch offset
+comment 4A25 noise wave?
+comment 4A29 pitch it down 40 notes
+comment 4A2C look up the wave pointer
+comment 4A31 frame +0: wave pointer
+comment 4A33 frame +2: pitch times 2
+comment 4A34 (+3 is skipped)
+
+label 4A3E C_NOTE
+block 4A3E C_NOTE: command 3 n d r.
+comment 4A3E A = note, B = duration
+comment 4A41 V_NOTE: note times 2
+comment 4A44 V_DUR = d - 1
+comment 4A46 previous note had a rest?
+comment 4A4A yes: restart the envelope
+comment 4A4D (branches to the next line)
+comment 4A4F A = rest length
+comment 4A55 save the pattern pointer
+comment 4A57 sound the selected instrument
+comment 4A5B with a rest: V_GAP = r - 1,
+comment 4A62 V_DUR = d
+
+label 4A65 C_SETINS
+block 4A65 C_SETINS: commands 4, 5 and 6. Select instrument i.
+label 4A71 C_BEND
+block 4A71 C_BEND: command 7. Set the pitch bend.
+comment 4A71 skip the ignored byte
+label 4A79 C_BRATE
+block 4A79 C_BRATE: command 8. Set the bend rate.
+comment 4A79 skip the ignored byte
+
+# ------------------------------------------------------------- PWM
+label 4A81 PWMSTEP
+block 4A81 PWMSTEP: pulse-width modulation of wave 13 (WPWM). Moves the edge
+block 4A81 at the end of the high part 4 samples per call, sweeping it back and
+block 4A81 forth over the second half of the table. The values written are
+block 4A81 already biased: $4E is the high level, $06 the low level.
+block 4A81 WPWM2 and WPWM4 are copies made at startup and do not sweep.
+comment 4A81 X = edge
+comment 4A87 direction
+comment 4A8B shrink: write low, backwards
+comment 4A99 back to the middle?
+comment 4A9D turn round
+label 4AA3 PWMGROW
+comment 4AA3 grow: write high, forwards
+comment 4AB1 wrapped past the end?
+comment 4AB3 turn round
+
+# ------------------------------------------------------------- wave tables
+label 4ABC MAKEWAVES
+block 4ABC MAKEWAVES: build the 256-byte signed wave tables. Full amplitude
+block 4ABC is about +/-42 ($24/$DC for the pulses). Half and quarter
+block 4ABC amplitude copies give the volume steps. Finally $2A is added to
+block 4ABC every byte, so the sum of three voices centres on the DAC's middle.
+comment 4ABC WPULSE: 224 high
+comment 4AC8 then 32 low
+comment 4AD1 WPWM: 88 low
+comment 4ADD then 168 high
+comment 4AE6 WOFF: silence
+comment 4AF2 WSINE: second half is
+comment 4AF5 the first half negated
+comment 4B00 half and quarter copies
+comment 4B64 bias every table, noise too
+
+label 4B73 HALVE
+block 4B73 HALVE: Y[i] = X[i] / 2 (signed) for 256 bytes.
+
+label 4B7D WAVEPTRS
+block 4B7D WAVEPTRS: wave number to table, used by command 2.
+block 4B7D   0 silence, 1-4 sine/saw/triangle/pulse, 5-8 half and 9-12 quarter
+block 4B7D   amplitude of those, 13-15 PWM full/half/quarter, 16-23 noise.
+
+# ------------------------------------------------------------- song data
+label 532D FREQTAB
+block 532D FREQTAB: 128 notes, each half its phase increment (MIXER doubles
+block 532D it). Indexed by (note + frame pitch offset) times 2. Successive
+block 532D entries step by a semitone; note 60 is roughly middle C.
+
+label 542D SONG1
+label 5478 SONG2
+label 54C1 SONG3
+block 542D SONG1, SONG2, SONG3: song lists for voices 1-3.
+block 5478 Voice 2's list stops the voice with 0; the bytes after it are unused.
+block 54C1 Voice 3's list has no 0 or $FF terminator; it runs into PATTERNS.
+
+label 553B PATTERNS
+block 553B PATTERNS: pattern number to address. Entry 0 is unused, because a 0
+block 553B in a song list stops the voice.
+
+block 55A1 Patterns. Pattern 1 begins by defining instrument 0 as 15 silent
+block 55A1 frames, then defines the song's other instruments.
+
+block 6395 WNOISE: eight 256-byte noise tables (waves 16-23).
+label 6B95 WSINE
+block 6B95 WSINE: first half of a sine. MAKEWAVES builds the second half
+block 6B95 at $6C15.
+label 6C95 WSAW
+block 6C95 WSAW: sawtooth.
+label 6D95 WTRI
+block 6D95 WTRI: triangle.
+
+# ------------------------------------------------------------- generated
+# voice record fields, as reached through the direct page
+expr 4815 VOICE1+V_NOTE
+expr 4816 VOICE1+V_INSTR
+expr 4818 VOICE1+V_IBASE
+expr 481A VOICE1+V_FRAME
+expr 481B VOICE1+V_PATPTR
+expr 481D VOICE1+V_SONGPTR
+expr 481F VOICE1+V_DUR
+expr 4820 VOICE1+V_GAP
+expr 4821 VOICE1+V_GAPLEN
+expr 4822 VOICE1+V_BEND
+expr 4824 VOICE1+V_BRATE
+expr 4827 VOICE2+V_NOTE
+expr 4828 VOICE2+V_INSTR
+expr 482A VOICE2+V_IBASE
+expr 482C VOICE2+V_FRAME
+expr 482D VOICE2+V_PATPTR
+expr 482F VOICE2+V_SONGPTR
+expr 4831 VOICE2+V_DUR
+expr 4832 VOICE2+V_GAP
+expr 4833 VOICE2+V_GAPLEN
+expr 4834 VOICE2+V_BEND
+expr 4836 VOICE2+V_BRATE
+expr 4839 VOICE3+V_NOTE
+expr 483A VOICE3+V_INSTR
+expr 483C VOICE3+V_IBASE
+expr 483E VOICE3+V_FRAME
+expr 483F VOICE3+V_PATPTR
+expr 4841 VOICE3+V_SONGPTR
+expr 4843 VOICE3+V_DUR
+expr 4844 VOICE3+V_GAP
+expr 4845 VOICE3+V_GAPLEN
+expr 4846 VOICE3+V_BEND
+expr 4848 VOICE3+V_BRATE
+# pattern start labels, from the PATTERNS table
+label 55A1 PAT01
+label 57C2 PAT02
+label 57ED PAT03
+label 5818 PAT04
+label 5843 PAT05
+label 588E PAT06
+label 58D7 PAT07
+label 5914 PAT08
+label 5953 PAT09
+label 5980 PAT0A
+label 59BF PAT0B
+label 59F4 PAT0C
+label 5A1F PAT0D
+label 5A4A PAT0E
+label 5A75 PAT0F
+label 5ABE PAT10
+label 5AFB PAT11
+label 5B4C PAT12
+label 5B91 PAT13
+label 5BE8 PAT14
+label 5C3B PAT15
+label 5C8E PAT16
+label 5CE5 PAT17
+label 5D28 PAT18
+label 5D6D PAT19
+label 5DB2 PAT1A
+label 5DF9 PAT1B
+label 5E38 PAT1C
+label 5E67 PAT1D
+label 5E96 PAT1E
+label 5ECD PAT1F
+label 5F00 PAT20
+label 5F4F PAT21
+label 5FA2 PAT22
+label 5FDD PAT23
+label 6014 PAT24
+label 6077 PAT25
+label 60DA PAT26
+label 613D PAT27
+label 614E PAT28
+label 6179 PAT29
+label 61A4 PAT2A
+label 61CF PAT2B
+label 6208 PAT2C
+label 6219 PAT2D
+label 6264 PAT2E
+label 62AF PAT2F
+label 62FA PAT30
+label 6345 PAT31
+label 6384 PAT32

@@ -5,7 +5,11 @@ Follows control flow from the exec address (and any extra entry points given
 with -e), so code and data are separated. Output is lwasm source that
 reassembles byte-for-byte to the original segments.
 
-usage: dis6809.py FILE.BIN [-e ADDR ...] [-d ADDR[-ADDR] ...] > out.asm
+usage: dis6809.py FILE.BIN [-a FILE.ann] [-e ADDR ...] [-d ADDR[-ADDR] ...]
+                  > out.asm
+
+The optional annotation file supplies labels, symbols, comments and options;
+see the Annotations class for its format.
 """
 import argparse
 import sys
@@ -321,10 +325,99 @@ def trace(img, entries):
     return code, calls
 
 
+# --------------------------------------------------------------- annotations
+class Annotations:
+    """Hand-written knowledge merged into the output. One directive per line:
+
+    dp VV                   default direct page value
+    dp-at LO-HI VV          direct page value for an address range
+    entry ADDR ...          extra code entry points
+    data LO-HI              force a range to be data
+    words LO-HI             emit a data range as FDB words (numeric)
+    ptrs LO-HI              emit a data range as FDB words, named where possible
+    label ADDR NAME         name an address (outside the image or inside an
+                            instruction it becomes an EQU)
+    expr ADDR TEXT          render references to ADDR as TEXT (e.g. VOICE1+V_NOTE)
+    equ NAME VALUE [; c]    define a free symbol (e.g. a structure offset)
+    field REG OFF NAME      render OFF,REG (5-bit offset) as NAME,REG
+    comment ADDR TEXT       end-of-line comment
+    block ADDR [TEXT]       full-line comment before ADDR (repeat for more lines)
+    header [TEXT]           comment line in the file header
+
+    Addresses and values are hex. '#' starts a comment line.
+    """
+
+    def __init__(self):
+        self.dp, self.dp_at = None, []
+        self.entries, self.data, self.words, self.ptrs = [], [], [], []
+        self.labels, self.exprs, self.fields = {}, {}, {}
+        self.equs, self.comments, self.blocks, self.header = [], {}, {}, []
+
+
+def hexrange(spec):
+    lo, _, hi = spec.partition("-")
+    return int(lo, 16), int(hi or lo, 16)
+
+
+def load_annotations(path):
+    ann = Annotations()
+    for n, line in enumerate(open(path), 1):
+        line = line.rstrip("\n")
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        kw, _, rest = line.partition(" ")
+        try:
+            if kw in ("block", "header"):
+                # keep the text verbatim after one separating space
+                if kw == "header":
+                    ann.header.append(rest)
+                    continue
+                addr, _, text = rest.partition(" ")
+                ann.blocks.setdefault(int(addr, 16), []).append(text)
+                continue
+            args = rest.split(None, 2)
+            if kw == "dp":
+                ann.dp = int(args[0], 16)
+            elif kw == "dp-at":
+                ann.dp_at.append((*hexrange(args[0]), int(args[1], 16)))
+            elif kw == "entry":
+                ann.entries += [int(x, 16) for x in rest.split()]
+            elif kw == "data":
+                ann.data.append(hexrange(args[0]))
+            elif kw == "words":
+                ann.words.append(hexrange(args[0]))
+            elif kw == "ptrs":
+                ann.ptrs.append(hexrange(args[0]))
+            elif kw == "label":
+                ann.labels[int(args[0], 16)] = args[1]
+            elif kw == "expr":
+                ann.exprs[int(args[0], 16)] = " ".join(args[1:])
+            elif kw == "equ":
+                value, _, cmt = " ".join(args[1:]).partition(";")
+                ann.equs.append((args[0], value.strip(), cmt.strip()))
+            elif kw == "field":
+                reg, off, name = rest.split()
+                ann.fields[(reg.upper(), int(off, 16))] = name
+            elif kw == "comment":
+                addr, _, text = rest.partition(" ")
+                ann.comments[int(addr, 16)] = text.strip()
+            else:
+                raise ValueError(f"unknown directive {kw!r}")
+        except (IndexError, ValueError) as e:
+            sys.exit(f"{path}:{n}: {e}")
+    return ann
+
+
 # ------------------------------------------------------------------- output
+CODE_COL = 42   # column of the "; ADDR: bytes" field on code lines
+DATA_COL = 56   # same, on data lines
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
+    ap.add_argument("-a", "--annotations",
+                    help="annotation file with labels, comments and options")
     ap.add_argument("-e", "--entry", action="append", default=[],
                     help="extra code entry point (hex)")
     ap.add_argument("-d", "--data", action="append", default=[],
@@ -333,20 +426,19 @@ def main():
     ap.add_argument("--dp-at", action="append", default=[],
                     help="DP value for an address range: LO-HI=VV (hex)")
     args = ap.parse_args()
+
+    ann = load_annotations(args.annotations) if args.annotations else Annotations()
     global DP
-    if args.dp:
-        DP = int(args.dp, 16)
+    DP = int(args.dp, 16) if args.dp else ann.dp
+    DP_RANGES.extend(ann.dp_at)
     for spec in args.dp_at:
         rng, _, val = spec.partition("=")
-        lo, _, hi = rng.partition("-")
-        DP_RANGES.append((int(lo, 16), int(hi or lo, 16), int(val, 16)))
+        DP_RANGES.append((*hexrange(rng), int(val, 16)))
 
     img = Image(open(args.file, "rb").read())
-    entries = [img.exec_addr] + [int(e, 16) for e in args.entry]
+    entries = [img.exec_addr] + ann.entries + [int(e, 16) for e in args.entry]
     code, calls = trace(img, entries)
-    for spec in args.data:
-        lo, _, hi = spec.partition("-")
-        lo, hi = int(lo, 16), int(hi or lo, 16)
+    for lo, hi in ann.data + [hexrange(d) for d in args.data]:
         for a in list(code):
             if lo <= a <= hi:
                 del code[a]
@@ -355,37 +447,46 @@ def main():
     for a, ins in code.items():
         covered.update(range(a, a + ins.size))
 
-    # labels: every in-image target or operand reference
+    # labels: every in-image target or operand reference, then hand-named ones
     labels = {}
     for a, ins in code.items():
-        for t, kind in ((ins.target, "code"), (ins.ref, "data")):
+        for t in (ins.target, ins.ref):
             if t is None or img.byte(t) is None:
                 continue
             if t in calls:
                 labels[t] = f"S{t:04X}"
-            elif t in code and kind == "code":
-                labels.setdefault(t, f"L{t:04X}")
             elif t in code:
                 labels.setdefault(t, f"L{t:04X}")
             else:
                 labels.setdefault(t, f"D{t:04X}")
     labels[img.exec_addr] = "START"
+    labels.update(ann.labels)
 
-    # a label is "placeable" if it lands on an instruction start, or in data
+    # a label is placed in the listing if it lands on an instruction start or
+    # in data inside the image; anything else is defined with EQU
     def placeable(a):
-        return a in code or a not in covered
+        return img.byte(a) is not None and (a in code or a not in covered)
     equ_labels = {a: n for a, n in labels.items() if not placeable(a)}
+
+    words, ptrs = set(), set()
+    for lo, hi in ann.words:
+        words.update(range(lo, hi + 1))
+    for lo, hi in ann.ptrs:
+        ptrs.update(range(lo, hi + 1))
+    words |= ptrs
 
     used_equ = set()
 
-    def name(a, digits=4):
+    def name(a):
         a &= 0xFFFF
+        if a in ann.exprs:
+            return ann.exprs[a]
         if a in labels:
             return labels[a]
         if a in EQUATES:
             used_equ.add(a)
             return EQUATES[a]
-        return f"${a:0{digits}X}"
+        return f"${a:04X}"
 
     def operand(ins):
         m, f = ins.mode, ins.fields
@@ -395,13 +496,18 @@ def main():
             return f"#${f[0]:02X}"
         if m == "imm16":
             v = f[0]
-            # immediate 16-bit values pointing into the image become labels
+            # only hand-named or traced addresses become symbols; other
+            # 16-bit constants stay numeric
             if v in labels:
                 return "#" + labels[v]
+            if v >= 0xFF00 and v in EQUATES:
+                return "#" + name(v)
+            if v in ann.exprs:
+                return "#" + ann.exprs[v]
             return f"#${v:04X}"
         if m == "dir":
-            if ins.ref in labels:
-                return "<" + labels[ins.ref]
+            if ins.ref in ann.exprs or ins.ref in labels:
+                return "<" + name(ins.ref)
             return f"<${f[0]:02X}"
         if m == "ext":
             n = name(f[0])
@@ -416,7 +522,8 @@ def main():
             return ",".join(f[0])
         kind = f[0]
         if kind == "o5":
-            return f"{f[2]},{f[1]}"
+            field = ann.fields.get((f[1], f[2]))
+            return f"{field or f[2]},{f[1]}"
         if kind == "post":
             s = f[1]
             return f"[{s}]" if f[2] else s
@@ -433,38 +540,74 @@ def main():
         raise AssertionError(kind)
 
     body = []
-    cur_dp = [DP]
+
+    def emit(label, text, col, tail, addr):
+        """One listing line. Long labels go on a line of their own."""
+        if label and len(label) >= 10:
+            body.append(label)
+            label = ""
+        line = f"{(label or ''):<10}{text}"
+        line = line.ljust(col - 1) + " ; " + tail
+        cmt = ann.comments.get(addr)
+        if cmt:
+            line = line.ljust(col + 22) + cmt
+        body.append(line.rstrip())
+
+    def emit_blocks(a):
+        if a in ann.blocks:
+            if body and body[-1] != "":
+                body.append("")
+            for text in ann.blocks[a]:
+                body.append(("; " + text).rstrip())
+
+    cur_dp = DP
     for seg_addr, seg_len in img.segments:
         body.append("")
-        body.append(f"\t\tORG\t${seg_addr:04X}")
+        body.append(f"{'':<10}ORG    ${seg_addr:04X}")
         a, end = seg_addr, seg_addr + seg_len
         while a < end:
+            emit_blocks(a)
             lab = labels.get(a) if a not in equ_labels else None
             if a in code and a + code[a].size <= end:
                 ins = code[a]
-                if dp_at(a) != cur_dp[0] and dp_at(a) is not None:
-                    cur_dp[0] = dp_at(a)
-                    body.append(f"\t\tSETDP\t${cur_dp[0]:02X}")
+                if dp_at(a) is not None and dp_at(a) != cur_dp:
+                    cur_dp = dp_at(a)
+                    body.append(f"{'':<10}SETDP  ${cur_dp:02X}")
                 raw = " ".join(f"{img.byte(a + i):02X}" for i in range(ins.size))
-                ops = operand(ins)
-                text = f"{(lab or ''):<8}\t{ins.mnem}\t{ops}"
-                pad = max(1, 40 - len(text.expandtabs(8)))
-                body.append(f"{text}{' ' * pad}; {a:04X}: {raw}")
+                emit(lab, f"{ins.mnem:<7}{operand(ins)}", CODE_COL,
+                     f"{a:04X}: {raw}", a)
                 if ins.flow in ("stop", "jump"):
                     body.append("")
                 a += ins.size
                 continue
-            # data run: up to 8 bytes, stopping at code or another label
+
+            def stop(b):
+                return (b >= end or b in code or b in ann.blocks
+                        or b in ann.comments
+                        or (b in labels and b not in equ_labels))
+
+            if a in words and a + 1 in words:
+                # FDB run: up to 4 words, symbolic where the value is named
+                vals = []
+                b = a
+                while (len(vals) < 4 and b + 1 in words and b + 1 < end
+                       and (b == a or not stop(b))):
+                    v = (img.byte(b) << 8) | img.byte(b + 1)
+                    named = b in ptrs and (v in ann.exprs or v in labels)
+                    vals.append(name(v) if named else f"${v:04X}")
+                    b += 2
+                emit(lab, "FDB    " + ",".join(vals), DATA_COL, f"{a:04X}", a)
+                a = b
+                continue
+            # FCB run: up to 8 bytes
             run = [img.byte(a)]
             b = a + 1
-            while (b < end and len(run) < 8 and b not in code
-                   and (b not in labels or b in equ_labels)):
+            while len(run) < 8 and not stop(b) and b not in words:
                 run.append(img.byte(b))
                 b += 1
             asc = "".join(chr(c) if 32 <= c < 127 else "." for c in run)
-            text = f"{(lab or ''):<8}\tFCB\t" + ",".join(f"${c:02X}" for c in run)
-            pad = max(1, 56 - len(text.expandtabs(8)))
-            body.append(f"{text}{' ' * pad}; {a:04X}: {asc}")
+            emit(lab, "FCB    " + ",".join(f"${c:02X}" for c in run),
+                 DATA_COL, f"{a:04X}: {asc}", a)
             a = b
 
     out = []
@@ -478,17 +621,33 @@ def main():
     for sa, sl in img.segments:
         out.append(f";   ${sa:04X}-${sa + sl - 1:04X} ({sl} bytes)")
     out.append(f"; Exec: ${img.exec_addr:04X}")
+    if ann.header:
+        out.append(";")
+        out.extend(("; " + h).rstrip() for h in ann.header)
     out.append("")
     if DP is not None:
-        out.append(f"\t\tSETDP\t${DP:02X}")
+        out.append(f"{'':<10}SETDP  ${DP:02X}")
+        out.append("")
+
+    def equ_line(name_, value, cmt=""):
+        line = f"{name_ + ' ':<10}EQU    {value}"
+        return (line.ljust(CODE_COL - 1) + " ; " + cmt) if cmt else line
+
+    for n, v, c in ann.equs:
+        out.append(equ_line(n, v, c))
+    if ann.equs:
         out.append("")
     for a in sorted(used_equ):
-        out.append(f"{EQUATES[a]:<8}\tEQU\t${a:04X}")
+        out.append(equ_line(EQUATES[a], f"${a:04X}"))
+    if used_equ:
+        out.append("")
     for a in sorted(equ_labels):
-        out.append(f"{equ_labels[a]:<8}\tEQU\t${a:04X}\t; inside an instruction")
+        where = "operand byte patched at run time" if a in covered else ""
+        out.append(equ_line(equ_labels[a], f"${a:04X}",
+                            ann.comments.get(a) or where))
     out.extend(body)
     out.append("")
-    out.append("\t\tEND\tSTART")
+    out.append(f"{'':<10}END    START")
     print("\n".join(out))
 
     n_code = sum(i.size for i in code.values())
