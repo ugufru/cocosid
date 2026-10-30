@@ -13,8 +13,11 @@ wavetable sound through the CoCo's 6-bit DAC.
 | `files/deleted/` | Six files recovered from deleted directory entries and free granules |
 | `cocosid.asm` | Commented disassembly of `COCOSID.BIN`, in lwasm syntax (generated) |
 | `cocosid.ann` | Labels, symbols and comments merged into `cocosid.asm` |
+| `song/song.asm` | The tune: song lists and patterns as readable lwasm source (generated) |
+| `song/README.md` | Song data format and a description of this tune |
 | `tools/decb_extract.py` | Extracts the live files from a Disk BASIC `.DSK` image |
 | `tools/dis6809.py` | Code-tracing 6809 disassembler for LOADM binaries |
+| `tools/songdump.py` | Decodes the song data into `song/song.asm` |
 
 ## Recovered deleted files
 
@@ -50,8 +53,11 @@ The labels, symbols and comments live in `cocosid.ann`, not in the listing,
 so edit that file and regenerate:
 
 ```sh
+python3 tools/songdump.py files/COCOSID.BIN > song/song.asm
 python3 tools/dis6809.py -a cocosid.ann files/COCOSID.BIN > cocosid.asm
 ```
+
+`cocosid.asm` INCLUDEs `song/song.asm`, so assemble from the repository root.
 
 The directive format is documented in the `Annotations` class in
 `tools/dis6809.py`. Besides labels and comments, the file carries options
@@ -73,8 +79,8 @@ the trace needs:
 | `$484B-$4BAC` | All of the code |
 | `$4BAD-$532C` | Not loaded; RAM |
 | `$532D` | Frequency table, indexed by note |
-| `$542D`, `$5478`, `$54C1` | Initial song data for voices 1 to 3 |
-| `$553B` | Pattern pointer table |
+| `$542D-$6394` | Song data (`song/song.asm`): song lists at `$542D`, `$5478`, `$54C1`; pattern table at `$553B`; 50 patterns |
+| `$6395-$6B94` | Eight noise wave tables |
 | `$6C95-$6E94` | Waveform source data |
 | `$6395-$7B95` | Waveform tables built in RAM at startup |
 

@@ -335,6 +335,8 @@ class Annotations:
     data LO-HI              force a range to be data
     words LO-HI             emit a data range as FDB words (numeric)
     ptrs LO-HI              emit a data range as FDB words, named where possible
+    include LO-HI FILE      replace a data range with INCLUDE FILE, which must
+                            assemble to the same bytes and define its labels
     label ADDR NAME         name an address (outside the image or inside an
                             instruction it becomes an EQU)
     expr ADDR TEXT          render references to ADDR as TEXT (e.g. VOICE1+V_NOTE)
@@ -350,6 +352,7 @@ class Annotations:
     def __init__(self):
         self.dp, self.dp_at = None, []
         self.entries, self.data, self.words, self.ptrs = [], [], [], []
+        self.includes = {}    # start addr -> (end addr, file)
         self.labels, self.exprs, self.fields = {}, {}, {}
         self.equs, self.comments, self.blocks, self.header = [], {}, {}, []
 
@@ -386,6 +389,9 @@ def load_annotations(path):
                 ann.data.append(hexrange(args[0]))
             elif kw == "words":
                 ann.words.append(hexrange(args[0]))
+            elif kw == "include":
+                lo, hi = hexrange(args[0])
+                ann.includes[lo] = (hi, args[1])
             elif kw == "ptrs":
                 ann.ptrs.append(hexrange(args[0]))
             elif kw == "label":
@@ -567,6 +573,11 @@ def main():
         a, end = seg_addr, seg_addr + seg_len
         while a < end:
             emit_blocks(a)
+            if a in ann.includes:
+                hi, path = ann.includes[a]
+                body.append(f"{'':<10}INCLUDE {path}")
+                a = hi + 1
+                continue
             lab = labels.get(a) if a not in equ_labels else None
             if a in code and a + code[a].size <= end:
                 ins = code[a]
