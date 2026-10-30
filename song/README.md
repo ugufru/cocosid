@@ -31,7 +31,8 @@ hundred for the sequencer and PWM). Nobody has timed it on hardware yet.
 Note numbers follow MIDI numbering (60 = C4), and that is how `song.asm`
 names them. Counting the time between mixer passes, the effective sample
 rate is about 11.4 kHz. At that rate note 69 (A4) comes out near 425 Hz, so
-the whole tune plays roughly half a semitone flat.
+the whole tune plays roughly half a semitone flat. The original source
+intends note 69 to be "A 440 Hz".
 
 ## Format
 
@@ -116,6 +117,12 @@ frame.
 | 16-23 | `W_NOISE0` ... `W_NOISE7` | eight different noise tables |
 
 ## This song
+
+The tune is Rob Hubbard's music for the Commodore 64 game *Commando*,
+converted note by note by hand by the author, Rémi Veilleux. See the
+History section of the main README for sources. His source gives the
+original's length as "3:56.12 (i.e.: 11806 frames / 96 = 123 patterns)"
+and its tempo as 125 BPM.
 
 The song is 3,936 ticks long, about 3 minutes 56 seconds, and then repeats.
 Every pattern is 32 or 64 ticks, and the three voices use separate sets of
