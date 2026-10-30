@@ -49,8 +49,9 @@ number per byte. When a pattern ends, the voice reads the next entry.
 
 ### Pattern table
 
-`PATTERNS` maps a pattern number to its address, with 2 bytes per entry.
-Entry 0 is never used as a pointer, because a 0 in a song list means stop.
+`PATTERNS` maps a pattern number to its address, with 2 bytes per entry,
+starting with pattern 1. The player indexes it from `PATTERNS-2`, because a
+0 in a song list means stop and so is never a pattern number.
 
 ### Patterns
 
@@ -64,8 +65,8 @@ A pattern is a stream of commands ending with `ENDPAT`. The macros in
 | `DEFINS i` + 15 `FRAME w,p` | `2 i` then 15 × `w p` | define instrument `i` |
 | `NOTE n,d,r` | `3 n d r` | play note `n` (see below) |
 | `INSTR i` | `6 i` | use instrument `i` for the following notes; `4` and `5` do the same but are unused |
-| `BEND x,v` | `7 x hh ll` | set the pitch bend to `v` (`x` is ignored) |
-| `BRATE x,v` | `8 x hh ll` | set the bend rate to `v` (`x` is ignored) |
+| `BEND x,v` | `7 x hh ll` | set the pitch bend to `v` (`x` is padding, ignored) |
+| `BRATE x,v` | `8 x hh ll` | set the bend rate to `v` (`x` is padding, ignored) |
 
 `NOTE n,d,r` takes `d + r` ticks (`d` if `r` is 0):
 
@@ -159,14 +160,26 @@ The descriptions come from reading the frames, not from listening.
 
 ### Quirks
 
-- **Voice 3's ending:** `SONG3` has no end marker of its own and runs on
-  into the pattern table. Its final entry is the first byte of
-  `PATTERNS` (the unused entry 0, `$2C00`), so voice 3 plays pattern `$2C`
-  and would then read `$00` and stop. All three voices finish on tick
-  3,936, though, and voice 1's `$FF` restarts the song first. Neither
-  voice 3's implied stop nor the `$00` at the end of `SONG2` is ever reached.
-- **Byte after `SONG1`:** the `$00` after `SONG1`'s `$FF` is never read.
-- **Unused commands:** `NOP` and instrument commands 4 and 5 never appear;
-  every instrument change uses command 6.
-- **Bend's ignored byte:** `BEND` always carries the ignored byte 7, and
-  `BRATE` always carries 0.
+- **End markers that are never read:** `SONG2` and `SONG3` both end with
+  `$00`. All three voices finish on tick 3,936, and voice 1 is processed
+  first, so its `$FF` restarts the song before either `$00` is read. The
+  `$00` after `SONG1`'s `$FF` is never read either.
+- **Unused commands:** `NOP` and instrument commands 4 and 5 never appear.
+  The author's source marks 4 and 5 "unused"; they share command 6's code,
+  and every instrument change uses command 6.
+- **Bend's padding byte:** the author wrote the bend commands as 16-bit
+  words, `fdb $0707,v` and `fdb $0800,v`. So `BEND` always carries a padding
+  byte of 7, and `BRATE` one of 0.
+
+### The author's terms
+
+The author's source uses different words for some of these things:
+
+| Here | Author's source |
+|---|---|
+| tick | "note" ('1' = 3 frame) |
+| instrument | "wavetable" or "wave" (`wavetable` reserves room for 32 of them) |
+| frame | "fragment" (`ssynth_wave_frag`) |
+| tied note | "slurred" note |
+| rest | "pause" |
+| pitch bend, bend rate | "pitch alteration", "pitch glide" |

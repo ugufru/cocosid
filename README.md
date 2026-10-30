@@ -51,6 +51,7 @@ His site describes three versions:
     3:56.12")
   - it plays at 125 BPM, which is 16.7 notes per second
   - the routine at `$4A81` is `rect_modulator`, the pulse-width modulation
+  - see "Cross-check with the original source" below for the full comparison
 
 The author's site carries "Copyright (c) 2010 Remi Veilleux", and the source
 has no license statement. His original files are kept unmodified in
@@ -163,6 +164,32 @@ the trace needs:
 - `entry 49F7 ... 4A07`: entries of the sequencer's command jump table,
   which is reached through an indirect `JMP [$4806]`.
 
+### Cross-check with the original source
+
+The disassembly was made from the binary alone, then checked against the
+author's listing (`third-party/cocosid-coco2/cocosid.lis`):
+
+- **Bytes:** all 7,775 bytes in the listing match `files/COCOSID.BIN`.
+- **Code and data:** the listing's instruction boundaries match the trace
+  exactly. The one difference was three unreachable `RTS` bytes at
+  `$484C-$484E`, now disassembled as code to match.
+- **Labels:** every routine label here sits on one of his. `cocosid.ann`
+  keeps our names and notes his beside them: "Author's name: synth_mixer"
+  in routine headers, and his names in square brackets on variables and
+  voice-record fields.
+- **Behaviour:** his comments agree with our reading of the mixer (77
+  cycles per sample by his counts), the envelope and release logic, the
+  commands, the PWM sweep and the wave tables.
+- **One correction:** the pattern table starts at `$553D` with pattern 1,
+  and the code indexes it from `PATTERNS-2`. We had put the table two bytes
+  earlier and described `SONG3` as running into it. In fact `SONG3` ends
+  with its own `$00`.
+
+Some of his comments are stale and disagree with his own code. For
+example, "loop for 205 iteration" sits above a count of 227, and "16
+entries" sits above a loop of 15 frames. Where they disagree, this
+project follows the code.
+
 ### Memory map
 
 | Address | Contents |
@@ -172,7 +199,7 @@ the trace needs:
 | `$484B-$4BAC` | All of the code |
 | `$4BAD-$532C` | Not loaded; RAM |
 | `$532D` | Frequency table, indexed by note |
-| `$542D-$6394` | Song data (`song/song.asm`): song lists at `$542D`, `$5478`, `$54C1`; pattern table at `$553B`; 50 patterns |
+| `$542D-$6394` | Song data (`song/song.asm`): song lists at `$542D`, `$5478`, `$54C1`; pattern table at `$553D`; 50 patterns |
 | `$6395-$6B94` | Eight noise wave tables |
 | `$6C95-$6E94` | Waveform source data |
 | `$6395-$7B95` | Waveform tables built in RAM at startup |

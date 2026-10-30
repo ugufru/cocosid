@@ -27,11 +27,11 @@ NOTE      MACRO                           ; note, duration, rest
 INSTR     MACRO                           ; select instrument (4 and 5 do the same)
           FCB    6,\1
           ENDM
-BEND      MACRO                           ; ignored byte, pitch bend
+BEND      MACRO                           ; padding byte (ignored), pitch bend
           FCB    7,\1
           FDB    (\2)&$FFFF
           ENDM
-BRATE     MACRO                           ; ignored byte, bend rate
+BRATE     MACRO                           ; padding byte (ignored), bend rate
           FCB    8,\1
           FDB    (\2)&$FFFF
           ENDM
@@ -104,13 +104,13 @@ SONG3     FCB    $02,$02,$03,$04,$02,$02,$03,$04 ; tick 0
           FCB    $2A,$2A,$0D,$0D,$2A,$2A,$0D,$0D ; tick 3072
           FCB    $2A,$2A,$0D,$0D,$2B,$2B,$2C,$02 ; tick 3328
           FCB    $28,$2B,$28,$28,$2B,$29,$29,$29 ; tick 3584
-          FCB    $29,$2B                  ; tick 3840
+          FCB    $29,$2B,$2C              ; tick 3840
+          FCB    $00                      ; stop (never reached: voice 1 restarts first)
 
 ; ---------------------------------------------------------------- patterns
-; Pattern number to address. Entry 0 is never used as a pointer, but its
-; bytes $2C,$00 are read as the end of SONG3: pattern $2C, then stop.
-PATTERNS  FCB    $2C,$00                  ; SONG3 tick 3904, then stop (never reached)
-          FDB    PAT01,PAT02,PAT03,PAT04
+; Pattern number to address, starting with pattern 1. The player indexes
+; the table from PATTERNS-2, since 0 in a song list means stop.
+PATTERNS  FDB    PAT01,PAT02,PAT03,PAT04
           FDB    PAT05,PAT06,PAT07,PAT08
           FDB    PAT09,PAT0A,PAT0B,PAT0C
           FDB    PAT0D,PAT0E,PAT0F,PAT10

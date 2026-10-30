@@ -13,7 +13,7 @@ import sys
 
 # Where the song lives in this build of the player (see cocosid.asm).
 SONGS = [0x542D, 0x5478, 0x54C1]   # SONG1, SONG2, SONG3
-PATTERNS = 0x553B                  # pattern pointer table
+PATTERNS = 0x553D                  # pattern pointer table, pattern 1 first
 NPATTERNS = 0x32                   # highest pattern number used
 SONG_END = 0x6395                  # first byte after the song block
 
@@ -54,7 +54,8 @@ def word(mem, a):
 
 
 def pattern_addr(mem, n):
-    return word(mem, PATTERNS + 2 * n)
+    # the player indexes the table from PATTERNS-2: patterns count from 1
+    return word(mem, PATTERNS + 2 * (n - 1))
 
 
 def parse_pattern(mem, a):
@@ -178,8 +179,8 @@ def main():
             ("FRAME", ["FCB    \\1,(\\2)&$FF"], "instrument frame: wave, pitch offset"),
             ("NOTE", ["FCB    3,\\1,\\2,\\3"], "note, duration, rest"),
             ("INSTR", ["FCB    6,\\1"], "select instrument (4 and 5 do the same)"),
-            ("BEND", ["FCB    7,\\1", "FDB    (\\2)&$FFFF"], "ignored byte, pitch bend"),
-            ("BRATE", ["FCB    8,\\1", "FDB    (\\2)&$FFFF"], "ignored byte, bend rate")]:
+            ("BEND", ["FCB    7,\\1", "FDB    (\\2)&$FFFF"], "padding byte (ignored), pitch bend"),
+            ("BRATE", ["FCB    8,\\1", "FDB    (\\2)&$FFFF"], "padding byte (ignored), bend rate")]:
         line(f"{name:<10}MACRO", cmt)
         for b in body:
             w(f"{'':<10}{b}")
@@ -213,7 +214,7 @@ def main():
                 cmt = f"tick {starts[v][run[0]]}"
             elif mem[run[0]] == 0xFF:
                 cmt = f"tick {length}: restart the song"
-            elif mem[run[0]] == 0 and v == 1:
+            elif mem[run[0]] == 0 and v in (1, 2):
                 cmt = f"stop (never reached: voice 1 restarts first)"
             else:
                 cmt = "never reached"
@@ -223,14 +224,11 @@ def main():
     # pattern table
     w("")
     w("; ---------------------------------------------------------------- patterns")
-    w("; Pattern number to address. Entry 0 is never used as a pointer, but its")
-    w("; bytes $2C,$00 are read as the end of SONG3: pattern $2C, then stop.")
-    t0 = starts[2].get(PATTERNS)
-    line(f"{'PATTERNS':<10}FCB    ${mem[PATTERNS]:02X},${mem[PATTERNS + 1]:02X}",
-         f"SONG3 tick {t0}, then stop (never reached)")
+    w("; Pattern number to address, starting with pattern 1. The player indexes")
+    w("; the table from PATTERNS-2, since 0 in a song list means stop.")
     for n in range(1, NPATTERNS + 1, 4):
         refs = ",".join(f"PAT{k:02X}" for k in range(n, min(n + 4, NPATTERNS + 1)))
-        line(f"{'':<10}FDB    {refs}")
+        line(f"{'PATTERNS' if n == 1 else '':<10}FDB    {refs}")
 
     # patterns
     for n in range(1, NPATTERNS + 1):

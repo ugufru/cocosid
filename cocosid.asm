@@ -35,18 +35,18 @@
 
           SETDP  $48
 
-V_NOTE    EQU    0                        ; note number times 2
-V_INSTR   EQU    1                        ; instrument now sounding (2 bytes)
-V_IBASE   EQU    3                        ; instrument selected by the pattern (2 bytes)
-V_FRAME   EQU    5                        ; envelope frame, times 4
-V_PATPTR  EQU    6                        ; next pattern command, 0 = fetch a pattern (2 bytes)
-V_SONGPTR EQU    8                        ; next song list entry (2 bytes)
-V_DUR     EQU    10                       ; ticks left before the note releases
-V_GAP     EQU    11                       ; ticks of rest left
-V_GAPLEN  EQU    12                       ; rest after the last note, 0 = tied to the next
-V_BEND    EQU    13                       ; pitch bend added to the frequency, voice 1 only (2 bytes)
-V_BRATE   EQU    15                       ; added to V_BEND every mixer pass (2 bytes)
-V_SIZE    EQU    18                       ; size of a voice record
+V_NOTE    EQU    0                        ; note number times 2 [ssynth_freq]
+V_INSTR   EQU    1                        ; instrument now sounding (2 bytes) [ssynth_wavetable]
+V_IBASE   EQU    3                        ; instrument selected by the pattern (2 bytes) [ssynth_note_wave]
+V_FRAME   EQU    5                        ; envelope frame, times 4 [ssynth_wave_frag]
+V_PATPTR  EQU    6                        ; next pattern command, 0 = fetch a pattern (2 bytes) [ssynth_voice_ptr]
+V_SONGPTR EQU    8                        ; next song list entry (2 bytes) [ssynth_song_ptr]
+V_DUR     EQU    10                       ; ticks left before the note releases [ssynth_note_duration]
+V_GAP     EQU    11                       ; ticks of rest left [ssynth_pause_duration]
+V_GAPLEN  EQU    12                       ; rest after the last note, 0 = tied to the next [ssynth_slur_note]
+V_BEND    EQU    13                       ; pitch bend added to the frequency, voice 1 only (2 bytes) [ssynth_pitch_alteration]
+V_BRATE   EQU    15                       ; added to V_BEND every mixer pass (2 bytes) [ssynth_pitch_glide]
+V_SIZE    EQU    18                       ; size of a voice record [sizeof_ssynth]
 
 PIA0CRA   EQU    $FF01
 PIA0CRB   EQU    $FF03
@@ -55,18 +55,18 @@ PIA1CRA   EQU    $FF21
 PIA1CRB   EQU    $FF23
 DSKREG    EQU    $FF40
 
-VOICE1    EQU    $4815                    ; voice records, V_SIZE bytes each (RAM)
+VOICE1    EQU    $4815                    ; voice records, V_SIZE bytes each (RAM) [synth1]
 VOICE2    EQU    $4827
 VOICE3    EQU    $4839
-V1_PHASE  EQU    $4955                    ; operand byte patched at run time
-V1_FREQ   EQU    $4958                    ; operand byte patched at run time
-V2_PHASE  EQU    $4961                    ; operand byte patched at run time
-V2_FREQ   EQU    $4964                    ; operand byte patched at run time
-V3_PHASE  EQU    $496D                    ; operand byte patched at run time
-V3_FREQ   EQU    $4970                    ; operand byte patched at run time
-V1_SAMPLE EQU    $4977                    ; operand byte patched at run time
-V2_SAMPLE EQU    $4979                    ; operand byte patched at run time
-INSTRS    EQU    $4BAD                    ; instruments, 60 bytes each (RAM)
+V1_PHASE  EQU    $4955                    ; [selfmod_ldd_freq1+1]
+V1_FREQ   EQU    $4958                    ; [selfmod_addd_freq1+1]
+V2_PHASE  EQU    $4961                    ; [selfmod_ldd_freq2+1]
+V2_FREQ   EQU    $4964                    ; [selfmod_addd_freq2+1]
+V3_PHASE  EQU    $496D                    ; [selfmod_ldd_freq3+1]
+V3_FREQ   EQU    $4970                    ; [selfmod_addd_freq3+1]
+V1_SAMPLE EQU    $4977                    ; [selfmod_addb_sample1+1]
+V2_SAMPLE EQU    $4979                    ; [selfmod_addb_sample2+1]
+INSTRS    EQU    $4BAD                    ; instruments, 60 bytes each (RAM) [wavetable]
 WOFF      EQU    $6E95                    ; wave tables built by MAKEWAVES (RAM)
 WSINE2    EQU    $6F95
 WSINE4    EQU    $7095
@@ -88,23 +88,29 @@ WEND      EQU    $7B95                    ; end of the wave tables
 ; and the voice records are reached with direct-page addressing.
 START     JMP    >INIT                    ; 4800: 7E 48 4F
 
-CMD2COUNT FCB    $00,$00,$00                            ; 4803: ...           frame counter for command 2; $4804-$4805 unused
-DISPATCH  FCB    $00,$00,$00,$00,$00,$00,$00,$00        ; 4806: ........      command handler address (2 bytes); $4808-$480D unused
-SAMPCOUNT FCB    $00                                    ; 480E: .             samples left in this mixer pass
-PWMDIR    FCB    $FF                                    ; 480F: .             PWM sweep direction: 0 = grow high part
-PWMPOS    FCB    $FF                                    ; 4810: .             PWM edge position within WPWM
-TICKS     FCB    $00                                    ; 4811: .             tick counter, never read
-SAVED_S   FCB    $00,$00,$00                            ; 4812: ...           S saved by MIXER (2 bytes); $4814 unused
+CMD2COUNT FCB    $00,$00,$00                            ; 4803: ...           frame counter for command 2; $4804-$4805 unused [tmp1]
+DISPATCH  FCB    $00,$00,$00,$00,$00,$00,$00,$00        ; 4806: ........      command handler address (2 bytes); $4808-$480D unused [dtmp1]
+SAMPCOUNT FCB    $00                                    ; 480E: .             samples left in this mixer pass [loop_lo]
+PWMDIR    FCB    $FF                                    ; 480F: .             PWM sweep direction: 0 = grow high part [modulate_dir]
+PWMPOS    FCB    $FF                                    ; 4810: .             PWM edge position within WPWM [modulate_index]
+TICKS     FCB    $00                                    ; 4811: .             tick counter, never read [frame_counter]
+SAVED_S   FCB    $00,$00,$00                            ; 4812: ...           S saved by MIXER (2 bytes); $4814 unused [backup_s]
 
           ORG    $484B
 
-; HOOK: called once at startup; just RTS. The next three bytes are
-; also RTS and are never reached.
+; HOOK: called once at startup; just RTS. The author's name for it is
+; disable_interrupt; in this CoCo 2 build its body is empty. The next
+; three RTS instructions are never reached.
 HOOK      RTS                             ; 484B: 39
 
-          FCB    $39,$39,$39                            ; 484C: 999
+          RTS                             ; 484C: 39
+
+          RTS                             ; 484D: 39
+
+          RTS                             ; 484E: 39
 
 ; INIT: take over the machine, build the wave tables, then play.
+; Author's name: start2.
 INIT      LDA    #$48                     ; 484F: 86 48         player variables live in page $48
           TFR    A,DP                     ; 4851: 1F 8B
           ORCC   #$50                     ; 4853: 1A 50         mask IRQ and FIRQ
@@ -121,12 +127,14 @@ INIT      LDA    #$48                     ; 484F: 86 48         player variables
 
 ; RESTART: also entered from the sequencer when voice 1's song list
 ; reaches $FF, possibly from inside a subroutine, so the stack is reset.
+; Author's name: reset_restart.
 RESTART   LDS    #$8000                   ; 4871: 10 CE 80 00
           JSR    <SNDINIT                 ; 4875: 9D 79         set up the DAC and rewind every voice
           BRA    MAINLOOP                 ; 4877: 20 5E
 
 ; SNDINIT: enable sound output, then point each voice at the start of
 ; its song list with its counters cleared.
+; Author's name: init_sound.
 SNDINIT   LDA    PIA1CRB                  ; 4879: B6 FF 23
           ORA    #$08                     ; 487C: 8A 08
           STA    PIA1CRB                  ; 487E: B7 FF 23      PIA1 CB2 high: sound enable
@@ -173,6 +181,7 @@ SNDINIT   LDA    PIA1CRB                  ; 4879: B6 FF 23
 
 ; MAINLOOP: one tick. The sequencer runs once and the mixer three
 ; times, with a PWM step between mixer passes. Never returns.
+; Author's name: loop_sound.
 MAINLOOP  JSR    SEQUENCER                ; 48D7: BD 49 B3
           JSR    <MIXER                   ; 48DA: 9D EA
           JSR    PWMSTEP                  ; 48DC: BD 4A 81
@@ -187,6 +196,7 @@ MAINLOOP  JSR    SEQUENCER                ; 48D7: BD 49 B3
 ; pitch offset), step to the next frame, look up the frequency and
 ; patch it into the sample loop. Voice 1 also applies its pitch bend.
 ; Y, U and S hold the three wave pointers, so S is saved first.
+; Author's name: sin_wave2.
 MIXER     STS    <SAVED_S                 ; 48EA: 10 DF 12      S becomes voice 3's wave pointer
           LDX    <VOICE1+V_INSTR          ; 48ED: 9E 16         voice 1: X = instrument frame
           LDA    <VOICE1+V_FRAME          ; 48EF: 96 1A
@@ -247,6 +257,7 @@ MIXER     STS    <SAVED_S                 ; 48EA: 10 DF 12      S becomes voice 
 ; signed index, which is why wave pointers aim at the middle of each
 ; table. Voice 1 and 2 samples are stored into the two ADDB operands,
 ; so the three are summed and sent to the DAC with no extra loads.
+; Author's name: synth_mixer.
 SAMPLOOP  LDD    #$0000                   ; 4954: CC 00 00      voice 1 phase
           ADDD   #$0000                   ; 4957: C3 00 00      + frequency (from MIXER)
           STD    <V1_PHASE                ; 495A: DD 55         store the new phase
@@ -275,6 +286,7 @@ SAMPLOOP  LDD    #$0000                   ; 4954: CC 00 00      voice 1 phase
 ; HOLD: count down a sounding note. While it lasts, loop the envelope
 ; over frames 3-11. When it ends, play the release frames, or stay
 ; in the sustain if the note is tied to the next one.
+; Author's name: note_continue.
 HOLD      LDB    V_FRAME,U                ; 4989: E6 45         (loaded but not used)
           DECA                            ; 498B: 4A
           STA    V_DUR,U                  ; 498C: A7 4A         one tick less
@@ -286,6 +298,7 @@ HOLD      LDB    V_FRAME,U                ; 4989: E6 45         (loaded but not 
           STA    V_FRAME,U                ; 4998: A7 45
 L499A     RTS                             ; 499A: 39
 
+; RELEASE (author: note_continue_release)
 RELEASE   LDA    V_GAPLEN,U               ; 499B: A6 4C         tied (no rest after it)?
           BNE    L49A3                    ; 499D: 26 04
           LDA    #$0C                     ; 499F: 86 0C         tied: stay in sustain
@@ -296,6 +309,7 @@ L49A5     STA    V_FRAME,U                ; 49A5: A7 45
           RTS                             ; 49A7: 39
 
 ; REST: count down a rest, playing instrument 0 (silence).
+; Author's name: pause_continue.
 REST      DECA                            ; 49A8: 4A
           STA    V_GAP,U                  ; 49A9: A7 4B
           LDD    #INSTRS                  ; 49AB: CC 4B AD      instrument 0
@@ -304,6 +318,7 @@ REST      DECA                            ; 49A8: 4A
           RTS                             ; 49B2: 39
 
 ; SEQUENCER: one tick of the song for each voice. U = voice record.
+; Author's name: process_song.
 SEQUENCER LDU    #VOICE1                  ; 49B3: CE 48 15
           JSR    SEQVOICE                 ; 49B6: BD 49 C2
           LDU    #VOICE2                  ; 49B9: CE 48 27
@@ -312,8 +327,11 @@ SEQUENCER LDU    #VOICE1                  ; 49B3: CE 48 15
 
 ; SEQVOICE: fetch a pattern if the voice has none, then count down
 ; the current note or rest, or else run pattern commands.
+; Author's name: process_voice.
 SEQVOICE  LDD    V_PATPTR,U               ; 49C2: EC 46         current pattern, 0 if none
           BNE    L49E0                    ; 49C4: 26 1A
+
+; NEXTPAT (author: new_pattern_request)
 NEXTPAT   LDX    V_SONGPTR,U              ; 49C6: AE 48         read the song list
           LDB    ,X+                      ; 49C8: E6 80         pattern number
           BEQ    VOICEDONE                ; 49CA: 27 06         0: voice finished
@@ -321,11 +339,12 @@ NEXTPAT   LDX    V_SONGPTR,U              ; 49C6: AE 48         read the song li
           BNE    L49D5                    ; 49CE: 26 05
           JMP    <RESTART                 ; 49D0: 0E 71         $FF: restart the song
 
+; VOICEDONE (author: new_pattern_end)
 VOICEDONE CLR    V_FRAME,U                ; 49D2: 6F 45         stay at frame 0; the song list is not advanced
           RTS                             ; 49D4: 39
 
 L49D5     STX    V_SONGPTR,U              ; 49D5: AF 48         save the song pointer
-          LDX    #PATTERNS                ; 49D7: 8E 55 3B      look the pattern up
+          LDX    #PATTERNS-2              ; 49D7: 8E 55 3B      patterns count from 1
           ASLB                            ; 49DA: 58
           ABX                             ; 49DB: 3A
           LDX    ,X                       ; 49DC: AE 84
@@ -354,6 +373,7 @@ L49E0     LDA    V_DUR,U                  ; 49E0: A6 4A         note still sound
 ;   8 x hh ll          set the bend rate (x ignored)
 ; Only voice 1 applies bend. Command 3 ends the voice's tick; all the
 ; others run the next command straight away.
+; Author's name: cmd_jumptable.
 CMDTABLE  BRA    C_ENDPAT                 ; 49F7: 20 14         0: end of pattern
 
           BRA    C_NOP                    ; 49F9: 20 14         1: no operation
@@ -362,9 +382,9 @@ CMDTABLE  BRA    C_ENDPAT                 ; 49F7: 20 14         0: end of patter
 
           BRA    C_NOTE                   ; 49FD: 20 3F         3: note
 
-          BRA    C_SETINS                 ; 49FF: 20 64         4: select instrument
+          BRA    C_SETINS                 ; 49FF: 20 64         4: (unused) same as 6
 
-          BRA    C_SETINS                 ; 4A01: 20 62         5: select instrument
+          BRA    C_SETINS                 ; 4A01: 20 62         5: (unused) same as 6
 
           BRA    C_SETINS                 ; 4A03: 20 60         6: select instrument
 
@@ -373,6 +393,7 @@ CMDTABLE  BRA    C_ENDPAT                 ; 49F7: 20 14         0: end of patter
           BRA    C_BRATE                  ; 4A07: 20 70         8: set bend rate
 
 ; CMDNEXT: save the pattern pointer and run the next command now.
+; Author's name: command_done.
 CMDNEXT   STX    V_PATPTR,U               ; 4A09: AF 46
           BRA    SEQVOICE                 ; 4A0B: 20 B5
 
@@ -383,6 +404,7 @@ C_NOP     LDA    #$01                     ; 4A0F: 86 01         (A is not used)
 
 ; C_DEFINS: command 2. Builds instrument i at INSTRS + 60*i. Waves
 ; 16-23 (noise) are pitched down 40 notes.
+; Author's name: command_02.
 C_DEFINS  PSHS   U                        ; 4A13: 34 40
           LDA    #$3C                     ; 4A15: 86 3C         60 bytes per instrument
           LDB    ,X+                      ; 4A17: E6 80
@@ -407,6 +429,7 @@ L4A2B     ASLA                            ; 4A2B: 48
           BRA    CMDNEXT                  ; 4A3C: 20 CB
 
 ; C_NOTE: command 3 n d r.
+; Author's name: command_03.
 C_NOTE    LDD    ,X++                     ; 4A3E: EC 81         A = note, B = duration
           ASLA                            ; 4A40: 48
           STA    ,U                       ; 4A41: A7 C4         V_NOTE: note times 2
@@ -431,7 +454,9 @@ L4A4F     LDA    ,X+                      ; 4A4F: A6 80         A = rest length
           INC    V_DUR,U                  ; 4A62: 6C 4A         V_DUR = d
 L4A64     RTS                             ; 4A64: 39
 
-; C_SETINS: commands 4, 5 and 6. Select instrument i.
+; C_SETINS: commands 4, 5 and 6. Select instrument i. The author's
+; source marks 4 and 5 "unused"; they share command 6's code.
+; Author's name: command_04/05/06.
 C_SETINS  LDA    #$3C                     ; 4A65: 86 3C
           LDB    ,X+                      ; 4A67: E6 80
           MUL                             ; 4A69: 3D
@@ -440,12 +465,14 @@ C_SETINS  LDA    #$3C                     ; 4A65: 86 3C
           BRA    CMDNEXT                  ; 4A6F: 20 98
 
 ; C_BEND: command 7. Set the pitch bend.
+; Author's name: command_07.
 C_BEND    LEAX   1,X                      ; 4A71: 30 01         skip the ignored byte
           LDD    ,X++                     ; 4A73: EC 81
           STD    V_BEND,U                 ; 4A75: ED 4D
           BRA    CMDNEXT                  ; 4A77: 20 90
 
 ; C_BRATE: command 8. Set the bend rate.
+; Author's name: command_08.
 C_BRATE   LEAX   1,X                      ; 4A79: 30 01         skip the ignored byte
           LDD    ,X++                     ; 4A7B: EC 81
           STD    V_BRATE,U                ; 4A7D: ED 4F
@@ -456,6 +483,7 @@ C_BRATE   LEAX   1,X                      ; 4A79: 30 01         skip the ignored
 ; forth over the second half of the table. The values written are
 ; already biased: $4E is the high level, $06 the low level.
 ; WPWM2 and WPWM4 are copies made at startup and do not sweep.
+; Author's name: rect_modulator.
 PWMSTEP   LDX    #WPWM                    ; 4A81: 8E 78 95      X = edge
           LDB    <PWMPOS                  ; 4A84: D6 10
           ABX                             ; 4A86: 3A
@@ -492,6 +520,7 @@ L4ABB     RTS                             ; 4ABB: 39
 ; is about +/-42 ($24/$DC for the pulses). Half and quarter
 ; amplitude copies give the volume steps. Finally $2A is added to
 ; every byte, so the sum of three voices centres on the DAC's middle.
+; Author's name: generate_waveform.
 MAKEWAVES LDX    #WPULSE                  ; 4ABC: 8E 75 95      WPULSE: 224 high
           LDA    #$E0                     ; 4ABF: 86 E0
           LDB    #$24                     ; 4AC1: C6 24
@@ -566,6 +595,7 @@ L4B67     LDA    ,X                       ; 4B67: A6 84
           RTS                             ; 4B72: 39
 
 ; HALVE: Y[i] = X[i] / 2 (signed) for 256 bytes.
+; Author's name: waveform_volume_half.
 HALVE     CLRA                            ; 4B73: 4F
 L4B74     LDB    ,X+                      ; 4B74: E6 80
           ASRB                            ; 4B76: 57
@@ -577,6 +607,7 @@ L4B74     LDB    ,X+                      ; 4B74: E6 80
 ; WAVEPTRS: wave number to table, used by command 2.
 ;   0 silence, 1-4 sine/saw/triangle/pulse, 5-8 half and 9-12 quarter
 ;   amplitude of those, 13-15 PWM full/half/quarter, 16-23 noise.
+; Author's name: waveform_lookup.
 WAVEPTRS  FDB    WOFF+$80,WSINE+$80,WSAW+$80,WTRI+$80   ; 4B7D
           FDB    WPULSE+$80,WSINE2+$80,WSAW2+$80,WTRI2+$80 ; 4B85
           FDB    WPULSE2+$80,WSINE4+$80,WSAW4+$80,WTRI4+$80 ; 4B8D
@@ -589,6 +620,7 @@ WAVEPTRS  FDB    WOFF+$80,WSINE+$80,WSAW+$80,WTRI+$80   ; 4B7D
 ; FREQTAB: 128 notes, each half its phase increment (MIXER doubles
 ; it). Indexed by (note + frame pitch offset) times 2. Successive
 ; entries step by a semitone; note 60 is roughly middle C.
+; Author's name: note_table.
 FREQTAB   FDB    $0017,$0018,$001A,$001B                ; 532D
           FDB    $001D,$001E,$0020,$0022                ; 5335
           FDB    $0024,$0026,$0029,$002B                ; 533D
