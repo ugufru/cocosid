@@ -19,6 +19,21 @@ wavetable sound through the CoCo's 6-bit DAC.
 | `tools/dis6809.py` | Code-tracing 6809 disassembler for LOADM binaries |
 | `tools/songdump.py` | Decodes the song data into `song/song.asm` |
 
+## Running it
+
+In [XRoar](https://www.6809.org.uk/xroar/), as a US CoCo 2 with Disk BASIC:
+
+```sh
+xroar -machine coco2bus -rompath ~/.xroar/roms -cart rsdos -run files/COCOSID.BIN
+```
+
+Point `-rompath` at the directory holding your CoCo ROMs (`bas13.rom`,
+`extbas11.rom`, `disk11.rom`). If XRoar can't find them, the log shows
+`Slot 0: (unpopulated)`, the screen fills with garbage and there is no
+sound. When it works the text screen freezes and the tune plays,
+looping after about four minutes. The keyboard is ignored; close the
+window or reset to stop it.
+
 ## Recovered deleted files
 
 Disk BASIC deletes a file by zeroing the first byte of its name and freeing
@@ -99,9 +114,10 @@ the trace needs:
   `LDD #phase / ADDD #freq / STD` sequence whose `#phase` operand is
   rewritten every pass. Each voice's sample is written into the operand of a
   later `ADDB #`, and the sum goes straight to the DAC at `$FF20`. The
-  patched operand bytes are labelled with `EQU`s (`D4955`, `D4977`, ...).
+  patched operand bytes are labelled with `EQU`s (`V1_PHASE`, `V1_SAMPLE`, ...).
 
 ## Requirements
 
 - Python 3 (no third-party packages)
 - [lwtools](http://www.lwtools.ca/) for `lwasm`
+- [XRoar](https://www.6809.org.uk/xroar/) and CoCo ROM images to run it
