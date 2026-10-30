@@ -41,14 +41,17 @@ COCOSID3, the latest, is rebuilt here from his source in `cocosid3/` (see
   listing, dated 13 February 2010. Its `cocosid.bin` is identical to
   `files/COCOSID.BIN`.
 - The CoCo 2 source keeps the CoCo 3 code commented out: GIME setup,
-  title picture and VU meter. It also scales its pitch bends by a
-  `cycle_ratio` of 76/92.
-- The header still claims "19 KHz realtime mixing". On the CoCo 2 the mixing
-  loop takes 77 cycles at 0.895 MHz, about 11.6 kHz, so that figure
-  presumably describes the CoCo 3 build.
-- The disk was made from a copy of the author's CoCo 3 demo disk. Its six
-  deleted files are byte-identical to the six files on the archive's
-  "CocoSiD (Remz) (Coco 3)" disk, in the same granules (see below).
+  title picture and VU meter. It also rebuilds the mixer around
+  self-modifying code and scales its note table and pitch bends by 76/92.
+- The header still claims "19 KHz realtime mixing". That is the CoCo 3
+  build's rate, 92 cycles a sample at 1.79 MHz. On the CoCo 2 the loop
+  takes 77 cycles at 0.895 MHz, about 11.6 kHz.
+- [`docs/coco3-vs-coco2.md`](docs/coco3-vs-coco2.md) compares the two
+  builds in full. It also finds that the CoCo 3 binary has unused keyboard
+  and joystick code that its source lacks.
+- The disk was made from a copy of the author's CoCo 3 demo disk, whose
+  files still sit in its deleted space. They are the same files as on the
+  archive's "CocoSiD (Remz) (Coco 3)" disk in `third-party/`.
 - The original source confirms details reconstructed here independently:
   - the song is 123 patterns of 96 C64 frames ("Total Commando song:
     3:56.12")
@@ -78,7 +81,6 @@ Sources:
 |---|---|
 | `COCOSID2.DSK` | Original disk image: 35 tracks, single sided, Disk BASIC (RS-DOS) |
 | `files/COCOSID.BIN` | The only live file on the disk: a LOADM binary, exec `$4800` |
-| `files/deleted/` | Six files recovered from deleted space: the author's CoCo 3 demos |
 | `cocosid.asm` | Commented disassembly of `COCOSID.BIN`, in lwasm syntax (generated) |
 | `cocosid.ann` | Labels, symbols and comments merged into `cocosid.asm` |
 | `song/song.asm` | The tune: song lists and patterns as readable lwasm source (generated) |
@@ -91,6 +93,7 @@ Sources:
 | `tools/cid3dump.py` | Recovers COCOSID3's song files from the binary |
 | `tools/cocosid3_lwasm.py` | Makes the author's COCOSID3 source build with lwasm |
 | `tools/decb_cmp.py` | Compares what two LOADM binaries load into memory |
+| `docs/coco3-vs-coco2.md` | What changed between the CoCo 3 build and this CoCo 2 port |
 | `docs/sid-format.md` | The C64 `.sid` (PSID/RSID) format and how the author converted `.sid` tunes for CoCoSID |
 | `third-party/` | The author's original files (sources, disks), unmodified; see its README |
 | `LICENSE` | MIT, for this project's own work only (see License below) |
@@ -117,30 +120,6 @@ Point `-rompath` at the directory holding your CoCo ROMs (`bas13.rom`,
 sound. When it works the text screen freezes and the tune plays,
 looping after about four minutes. The keyboard is ignored; close the
 window or reset to stop it.
-
-## Recovered deleted files
-
-Disk BASIC deletes a file by zeroing the first byte of its name and freeing
-its granules, so the data survives until something overwrites it. These six
-were recovered by hand, reading contiguous granules from each start point,
-not by `decb_extract.py`. They fill granules 35 to 62 with no gaps or
-overlaps.
-
-Each one is byte-identical to a file on the author's CoCo 3 disk (Color
-Computer Archive, "CocoSiD (Remz) (Coco 3)"), which settles their names. The
-descriptions are the author's, from his site.
-
-| File | Bytes | Exec | Name on the CoCo 3 disk | What it is |
-|---|---|---|---|---|
-| `COCOSID-COCO3.BIN` | 22,833 | `$4800` | `COCOSID.BIN` | CoCoSID for the CoCo 3, with the background picture |
-| `COCOSID2.BIN` | 3,668 | `$1000` | `COCOSID2.BIN` | The file the author's disk calls COCOSID2 |
-| `SPRITE.BIN` | 15,501 | `$4000` | `SPRITE.BIN` | Scrolling and sprites demo in the style of *Super Mario World* |
-| `WOLF.BIN` | 4,999 | `$4000` | `WOLF.BIN` | Real-time 3D maze in the style of *Wolfenstein* |
-| `JOYTEST2.BIN` | 431 | `$4000` | `JOYTEST2.BIN` | Not described on the site |
-| `SCALE.BIN` | 9,322 | `$5000` | `SCALE.BIN` | Full-screen real-time sprite scaling, joystick controlled |
-
-`SCALE.BIN` had no directory entry left: the live `COCOSID.BIN` reused its
-slot.
 
 ## Disassembly
 

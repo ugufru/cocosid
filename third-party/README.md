@@ -42,8 +42,8 @@ From the Color Computer Archive,
 | `cocosid_title_test2.bin` | 2010-02-08 | Background picture the source `includebin`s at `$1000` (by Louis-Philippe Guilbert, per the author's site) |
 
 The two source files came from `CoCoSID_SourceCode.zip` inside the package,
-which is not kept separately. The six files on the disk are the ones found
-deleted on `COCOSID2.DSK` (see `files/deleted/`).
+which is not kept separately. The six files on the disk also survive in the
+deleted space of `COCOSID2.DSK`.
 
 ## `cocosid3/`: COCOSID3 source and conversion script
 
