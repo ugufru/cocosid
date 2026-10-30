@@ -1,0 +1,40 @@
+MIT License
+
+Copyright (c) 2026 Paul Cunningham
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Scope
+
+This license covers only the original work in this repository: the tools in
+tools/, cocosid.ann, the documentation (README.md, song/README.md, docs/), and
+the issue tracker files (issues.jsonl, issues.html).
+
+It does not cover the following, which remain the copyright of their owners
+and are not licensed by this file:
+
+- COCOSID2.DSK and everything in files/: CoCoSID and the other programs on
+  the disk, by Remi Veilleux.
+- cocosid.asm and song/song.asm: generated from Remi Veilleux's binary, so
+  they reproduce his program and his transcription of the music. The music
+  is "Commando" by Rob Hubbard.
+- Everything in third-party/, except third-party/README.md. See that README
+  for the source and copyright of each file.
