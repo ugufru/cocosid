@@ -62,6 +62,12 @@ The page itself, with his step-by-step conversion guide, is
 Left out, because they are not the author's work:
 
 - `siddump.exe` (32,768 bytes, 2007), the SIDDUMP tool by Covert Bitops.
+  It is copyright Lasse Öörni, Stein Pedersen and Michael Troelsen, under
+  a BSD-style license. Get it from its official repository instead,
+  [github.com/cadaver/siddump](https://github.com/cadaver/siddump), which
+  has the current source and the license in `readme.txt`. The copy in the
+  author's package is an older build (version 1.04 or earlier, judging by
+  its options), with no license text.
 - `R-type.sid` (40,666 bytes), the C64 *R-Type* music by Chris Hülsbeck and
   Ramiro Vaca (1988, Activision).
 

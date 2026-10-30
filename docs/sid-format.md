@@ -127,7 +127,8 @@ pattern format.
   [his archived CoCoSID3 page](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3).
   The steps:
 
-1. **Dump.** SIDDUMP by Covert Bitops emulates the C64, calls the tune's
+1. **Dump.** [SIDDUMP](https://github.com/cadaver/siddump) by Covert
+   Bitops (BSD-style license) emulates the C64, calls the tune's
    init routine, then calls play once per frame. For every frame it prints
    a table row giving each voice's frequency, note, waveform register, ADSR
    envelope and pulse width. The author's guide runs
