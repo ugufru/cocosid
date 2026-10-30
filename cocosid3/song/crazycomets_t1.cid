@@ -1,0 +1,1007 @@
+; Track 1, recovered from COCOSID3.BIN by tools/cid3dump.py
+
+pattern_t1_00
+; start of compressed data information header
+	fcb	4	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$0000,$0000,$0000,$0000,$0000,$0000,$0000,$0000	; batch 0
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$401E,$401E,$401E	; batch 0
+	fcb	17	; 2 batch(es) of length 2
+	fdb	$601E,$601E	; batch 0
+	fdb	$0000,$0000	; batch 1
+	fcb	8	; 1 batch(es) of length 1
+	fdb	$201E	; batch 0
+; start of data stream
+	fdb	$281E	; wave=5 freq=120
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$401E	; wave=8 freq=120
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$601E	; wave=12 freq=120
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fdb	$0000	; wave=0 freq=0
+
+pattern_t1_01
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	31	; 3 batch(es) of length 8
+	fdb	$0000,$0000,$0000,$0000,$0000,$0000,$0000,$0000	; batch 0
+	fdb	$8101,$207A,$9051,$984C,$A04C,$081E,$8101,$207A	; batch 1
+	fdb	$9051,$984C,$201E,$201E,$401E,$401E,$401E,$401E	; batch 2
+	fcb	25	; 3 batch(es) of length 2
+	fdb	$0000,$0000	; batch 0
+	fdb	$401E,$281E	; batch 1
+	fdb	$9051,$984C	; batch 2
+; start of data stream
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$0000	; wave=0 freq=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fdb	$A04C	; wave=20 freq=304
+	fdb	$081E	; wave=1 freq=120
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_02
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0830,$80CC,$2030,$2030,$2030,$2030	; batch 0
+	fdb	$081B,$80CC,$207A,$2039,$201B,$201B	; batch 1
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 2
+	fdb	$0829,$80CC,$2029,$2029,$2029,$2029	; batch 3
+	fdb	$081B,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0840,$80CC,$2040,$2040,$2040,$2040	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2018,$2018	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fdb	$0818	; wave=1 freq=96
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$083D	; wave=1 freq=244
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+
+pattern_t1_03
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0830,$80CC,$2030,$2030,$2030,$2030	; batch 0
+	fdb	$081B,$80CC,$207A,$2039,$201B,$201B	; batch 1
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 2
+	fdb	$0829,$80CC,$2029,$2029,$2029,$2029	; batch 3
+	fdb	$081B,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0840,$80CC,$2040,$2040,$2040,$2040	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2018,$2018	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$0818	; wave=1 freq=96
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$083D	; wave=1 freq=244
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+	fdb	$203D	; wave=4 freq=244
+
+pattern_t1_06
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0840,$80CC,$2040,$2040,$2040,$2040	; batch 0
+	fdb	$0824,$80CC,$207A,$2039,$2024,$2024	; batch 1
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 2
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 3
+	fdb	$0824,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0856,$80CC,$2056,$2056,$2056,$2056	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2020,$2020	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fdb	$0820	; wave=1 freq=128
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$0851	; wave=1 freq=324
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+
+pattern_t1_07
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0840,$80CC,$2040,$2040,$2040,$2040	; batch 0
+	fdb	$0824,$80CC,$207A,$2039,$2024,$2024	; batch 1
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 2
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 3
+	fdb	$0824,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0856,$80CC,$2056,$2056,$2056,$2056	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2020,$2020	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$0820	; wave=1 freq=128
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$0851	; wave=1 freq=324
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+
+pattern_t1_18
+; start of compressed data information header
+	fcb	4	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$0000,$0000,$0000,$0000,$0000,$0000,$0000,$0000	; batch 0
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$401E,$401E,$401E	; batch 0
+	fcb	17	; 2 batch(es) of length 2
+	fdb	$601E,$601E	; batch 0
+	fdb	$0000,$0000	; batch 1
+	fcb	8	; 1 batch(es) of length 1
+	fdb	$201E	; batch 0
+; start of data stream
+	fdb	$081E	; wave=1 freq=120
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$401E	; wave=8 freq=120
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$601E	; wave=12 freq=120
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fdb	$0000	; wave=0 freq=0
+
+pattern_t1_20
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 0
+	fdb	$081E,$80CC,$207A,$2039,$201E,$201E	; batch 1
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 2
+	fdb	$082E,$80CC,$202E,$202E,$202E,$202E	; batch 3
+	fdb	$081E,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$201B,$201B	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fdb	$081B	; wave=1 freq=108
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$0844	; wave=1 freq=272
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+
+pattern_t1_21
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0836,$80CC,$2036,$2036,$2036,$2036	; batch 0
+	fdb	$081E,$80CC,$207A,$2039,$201E,$201E	; batch 1
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 2
+	fdb	$082E,$80CC,$202E,$202E,$202E,$202E	; batch 3
+	fdb	$081E,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$201B,$201B	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$081B	; wave=1 freq=108
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$0844	; wave=1 freq=272
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+	fdb	$2044	; wave=4 freq=272
+
+pattern_t1_22
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 0
+	fdb	$0829,$80CC,$207A,$2039,$2029,$2029	; batch 1
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051	; batch 2
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 3
+	fdb	$0829,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0860,$80CC,$2060,$2060,$2060,$2060	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2024,$2024	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fdb	$0824	; wave=1 freq=144
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$085B	; wave=1 freq=364
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+
+pattern_t1_23
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$0848,$80CC,$2048,$2048,$2048,$2048	; batch 0
+	fdb	$0829,$80CC,$207A,$2039,$2029,$2029	; batch 1
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051	; batch 2
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 3
+	fdb	$0829,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0860,$80CC,$2060,$2060,$2060,$2060	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2024,$2024	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$0824	; wave=1 freq=144
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$085B	; wave=1 freq=364
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+
+pattern_t1_27
+; start of compressed data information header
+	fcb	7	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$2030,$2030,$0860,$80CC,$2060,$2060,$2060,$2060	; batch 0
+	fcb	13	; 1 batch(es) of length 6
+	fdb	$086C,$80CC,$206C,$206C,$206C,$206C	; batch 0
+	fcb	12	; 1 batch(es) of length 5
+	fdb	$8101,$207A,$9051,$984C,$A04C	; batch 0
+	fcb	11	; 1 batch(es) of length 4
+	fdb	$0830,$80CC,$2030,$2030	; batch 0
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$80CC,$207A,$2039	; batch 0
+	fcb	17	; 2 batch(es) of length 2
+	fdb	$2036,$2036	; batch 0
+	fdb	$2060,$2060	; batch 1
+	fcb	8	; 1 batch(es) of length 1
+	fdb	$0836	; batch 0
+; start of data stream
+	fdb	$0830	; wave=1 freq=192
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fdb	$08C1	; wave=1 freq=772
+	fcb	224	; compressed, batch_len=5, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fdb	$0860	; wave=1 freq=384
+	fdb	$80CC	; wave=16 freq=816
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	224	; compressed, batch_len=5, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$08D9	; wave=1 freq=868
+	fcb	224	; compressed, batch_len=5, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$086C	; wave=1 freq=432
+	fcb	224	; compressed, batch_len=5, batch no=0
+	fdb	$086C	; wave=1 freq=432
+	fdb	$8101	; wave=16 freq=1028
+	fdb	$207A	; wave=4 freq=488
+	fdb	$9051	; wave=18 freq=324
+	fdb	$984C	; wave=19 freq=304
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_28
+; start of compressed data information header
+	fcb	4	; batch groups in header
+	fcb	23	; 2 batch(es) of length 8
+	fdb	$2030,$2030,$0830,$80CC,$2030,$2030,$2030,$2030	; batch 0
+	fdb	$2036,$2036,$0836,$80CC,$2036,$2036,$2036,$2036	; batch 1
+	fcb	27	; 3 batch(es) of length 4
+	fdb	$0830,$80CC,$2030,$2030	; batch 0
+	fdb	$8101,$207A,$9051,$984C	; batch 1
+	fdb	$0836,$80CC,$2036,$2036	; batch 2
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$80CC,$207A,$2039	; batch 0
+	fcb	17	; 2 batch(es) of length 2
+	fdb	$2030,$2030	; batch 0
+	fdb	$2036,$2036	; batch 1
+; start of data stream
+	fdb	$0830	; wave=1 freq=192
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fdb	$0830	; wave=1 freq=192
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$2030	; wave=4 freq=192
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$0836	; wave=1 freq=216
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	218	; compressed, batch_len=4, batch no=2
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fdb	$0836	; wave=1 freq=216
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fdb	$2036	; wave=4 freq=216
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	218	; compressed, batch_len=4, batch no=2
+	fdb	$2036	; wave=4 freq=216
+	fdb	$2036	; wave=4 freq=216
+
+pattern_t1_29
+; start of compressed data information header
+	fcb	5	; batch groups in header
+	fcb	23	; 2 batch(es) of length 8
+	fdb	$2030,$2030,$0830,$80CC,$2030,$2030,$2030,$2030	; batch 0
+	fdb	$2036,$2036,$0836,$80CC,$2036,$2036,$2036,$2036	; batch 1
+	fcb	13	; 1 batch(es) of length 6
+	fdb	$0836,$8101,$207A,$9051,$984C,$A04C	; batch 0
+	fcb	19	; 2 batch(es) of length 4
+	fdb	$0830,$80CC,$2030,$2030	; batch 0
+	fdb	$8101,$207A,$9051,$984C	; batch 1
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$80CC,$207A,$2039	; batch 0
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$206C,$206C	; batch 0
+; start of data stream
+	fdb	$0830	; wave=1 freq=192
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fdb	$0830	; wave=1 freq=192
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fdb	$A04C	; wave=20 freq=304
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fdb	$2030	; wave=4 freq=192
+	fdb	$2030	; wave=4 freq=192
+	fdb	$0836	; wave=1 freq=216
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fdb	$0836	; wave=1 freq=216
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$2036	; wave=4 freq=216
+	fdb	$2036	; wave=4 freq=216
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$086C	; wave=1 freq=432
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$0836	; wave=1 freq=216
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_31
+; start of compressed data information header
+	fcb	5	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$203D,$203D,$087A,$80CC,$207A,$207A,$207A,$207A	; batch 0
+	fcb	14	; 1 batch(es) of length 7
+	fdb	$083D,$8101,$207A,$9051,$984C,$A04C,$087A	; batch 0
+	fcb	13	; 1 batch(es) of length 6
+	fdb	$8101,$207A,$9051,$984C,$A04C,$083D	; batch 0
+	fcb	19	; 2 batch(es) of length 4
+	fdb	$083D,$80CC,$203D,$203D	; batch 0
+	fdb	$083D,$80CC,$207A,$2039	; batch 1
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$207A,$207A	; batch 0
+; start of data stream
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	240	; compressed, batch_len=7, batch no=0
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	240	; compressed, batch_len=7, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$8101	; wave=16 freq=1028
+	fdb	$207A	; wave=4 freq=488
+	fdb	$9051	; wave=18 freq=324
+	fdb	$984C	; wave=19 freq=304
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_52
+; start of compressed data information header
+	fcb	3	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$08F3,$80CC,$20F3,$20F3,$20F3,$20F3,$08F3,$80CC	; batch 0
+	fcb	11	; 1 batch(es) of length 4
+	fdb	$20F3,$20F3,$20F3,$20F3	; batch 0
+	fcb	8	; 1 batch(es) of length 1
+	fdb	$20F3	; batch 0
+; start of data stream
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fdb	$20F3	; wave=4 freq=972
+
+pattern_t1_54
+; start of compressed data information header
+	fcb	3	; batch groups in header
+	fcb	15	; 1 batch(es) of length 8
+	fdb	$0944,$80CC,$2144,$2144,$2144,$2144,$0944,$80CC	; batch 0
+	fcb	11	; 1 batch(es) of length 4
+	fdb	$2144,$2144,$2144,$2144	; batch 0
+	fcb	8	; 1 batch(es) of length 1
+	fdb	$2144	; batch 0
+; start of data stream
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fcb	192	; compressed, batch_len=1, batch no=0
+	fdb	$2144	; wave=4 freq=1296
+
+pattern_t1_58
+; start of compressed data information header
+	fcb	3	; batch groups in header
+	fcb	31	; 3 batch(es) of length 8
+	fdb	$0829,$80CC,$207A,$2039,$2029,$2029,$0829,$8101	; batch 0
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051,$0829,$8101	; batch 1
+	fdb	$207A,$9051,$984C,$A04C,$0851,$80CC,$2051,$2051	; batch 2
+	fcb	11	; 1 batch(es) of length 4
+	fdb	$207A,$9051,$984C,$A04C	; batch 0
+	fcb	25	; 3 batch(es) of length 2
+	fdb	$2051,$2051	; batch 0
+	fdb	$2029,$2029	; batch 1
+	fdb	$0829,$80CC	; batch 2
+; start of data stream
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$0851	; wave=1 freq=324
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fdb	$0851	; wave=1 freq=324
+	fdb	$8101	; wave=16 freq=1028
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fdb	$207A	; wave=4 freq=488
+	fdb	$9051	; wave=18 freq=324
+	fdb	$984C	; wave=19 freq=304
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_59
+; start of compressed data information header
+	fcb	5	; batch groups in header
+	fcb	23	; 2 batch(es) of length 8
+	fdb	$2029,$2029,$0829,$8101,$207A,$9051,$984C,$A04C	; batch 0
+	fdb	$0829,$8101,$207A,$9051,$984C,$A04C,$0851,$8101	; batch 1
+	fcb	21	; 2 batch(es) of length 6
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051	; batch 0
+	fdb	$207A,$9051,$984C,$A04C,$0829,$8101	; batch 1
+	fcb	19	; 2 batch(es) of length 4
+	fdb	$0829,$80CC,$207A,$2039	; batch 0
+	fdb	$0829,$80CC,$2029,$2029	; batch 1
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$207A,$9051,$984C	; batch 0
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$2029,$2029	; batch 0
+; start of data stream
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$0851	; wave=1 freq=324
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fdb	$2051	; wave=4 freq=324
+	fdb	$2051	; wave=4 freq=324
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$A04C	; wave=20 freq=304
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_60
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 0
+	fdb	$0822,$80CC,$207A,$2039,$2022,$2022	; batch 1
+	fdb	$0844,$80CC,$2044,$2044,$2044,$2044	; batch 2
+	fdb	$0833,$80CC,$2033,$2033,$2033,$2033	; batch 3
+	fdb	$0822,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$201E,$201E	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fdb	$081E	; wave=1 freq=120
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$084D	; wave=1 freq=308
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+
+pattern_t1_61
+; start of compressed data information header
+	fcb	2	; batch groups in header
+	fcb	53	; 6 batch(es) of length 6
+	fdb	$083D,$80CC,$203D,$203D,$203D,$203D	; batch 0
+	fdb	$0822,$80CC,$207A,$2039,$2022,$2022	; batch 1
+	fdb	$0844,$80CC,$2044,$2044,$2044,$2044	; batch 2
+	fdb	$0833,$80CC,$2033,$2033,$2033,$2033	; batch 3
+	fdb	$0822,$8101,$207A,$9051,$984C,$A04C	; batch 4
+	fdb	$0851,$80CC,$2051,$2051,$2051,$2051	; batch 5
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$201E,$201E	; batch 0
+; start of data stream
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	235	; compressed, batch_len=6, batch no=3
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	234	; compressed, batch_len=6, batch no=2
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fdb	$081E	; wave=1 freq=120
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	236	; compressed, batch_len=6, batch no=4
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fcb	237	; compressed, batch_len=6, batch no=5
+	fdb	$084D	; wave=1 freq=308
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+	fdb	$204D	; wave=4 freq=308
+
+pattern_t1_62
+; start of compressed data information header
+	fcb	3	; batch groups in header
+	fcb	31	; 3 batch(es) of length 8
+	fdb	$082E,$80CC,$207A,$2039,$202E,$202E,$082E,$8101	; batch 0
+	fdb	$085B,$80CC,$205B,$205B,$205B,$205B,$082E,$8101	; batch 1
+	fdb	$207A,$9051,$984C,$A04C,$085B,$80CC,$205B,$205B	; batch 2
+	fcb	11	; 1 batch(es) of length 4
+	fdb	$207A,$9051,$984C,$A04C	; batch 0
+	fcb	25	; 3 batch(es) of length 2
+	fdb	$205B,$205B	; batch 0
+	fdb	$202E,$202E	; batch 1
+	fdb	$082E,$80CC	; batch 2
+; start of data stream
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$085B	; wave=1 freq=364
+	fdb	$80CC	; wave=16 freq=816
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fdb	$085B	; wave=1 freq=364
+	fdb	$8101	; wave=16 freq=1028
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	202	; compressed, batch_len=2, batch no=2
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	201	; compressed, batch_len=2, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	250	; compressed, batch_len=8, batch no=2
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fdb	$207A	; wave=4 freq=488
+	fdb	$9051	; wave=18 freq=324
+	fdb	$984C	; wave=19 freq=304
+	fdb	$A04C	; wave=20 freq=304
+
+pattern_t1_63
+; start of compressed data information header
+	fcb	5	; batch groups in header
+	fcb	23	; 2 batch(es) of length 8
+	fdb	$202E,$202E,$082E,$8101,$207A,$9051,$984C,$A04C	; batch 0
+	fdb	$082E,$8101,$207A,$9051,$984C,$A04C,$085B,$8101	; batch 1
+	fcb	21	; 2 batch(es) of length 6
+	fdb	$085B,$80CC,$205B,$205B,$205B,$205B	; batch 0
+	fdb	$207A,$9051,$984C,$A04C,$082E,$8101	; batch 1
+	fcb	19	; 2 batch(es) of length 4
+	fdb	$082E,$80CC,$207A,$2039	; batch 0
+	fdb	$082E,$80CC,$202E,$202E	; batch 1
+	fcb	10	; 1 batch(es) of length 3
+	fdb	$207A,$9051,$984C	; batch 0
+	fcb	9	; 1 batch(es) of length 2
+	fdb	$202E,$202E	; batch 0
+; start of data stream
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fdb	$085B	; wave=1 freq=364
+	fdb	$80CC	; wave=16 freq=816
+	fdb	$207A	; wave=4 freq=488
+	fdb	$2039	; wave=4 freq=228
+	fdb	$205B	; wave=4 freq=364
+	fdb	$205B	; wave=4 freq=364
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	200	; compressed, batch_len=2, batch no=0
+	fcb	216	; compressed, batch_len=4, batch no=0
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	232	; compressed, batch_len=6, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$A04C	; wave=20 freq=304
+	fcb	217	; compressed, batch_len=4, batch no=1
+	fcb	248	; compressed, batch_len=8, batch no=0
+	fcb	249	; compressed, batch_len=8, batch no=1
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	233	; compressed, batch_len=6, batch no=1
+	fcb	208	; compressed, batch_len=3, batch no=0
+	fdb	$A04C	; wave=20 freq=304
+
+; pattern list for this track 1, total length of song is 93 pattern:
+song_voice1
+	fdb	pattern_t1_00
+	fdb	pattern_t1_01
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_18
+	fdb	pattern_t1_01
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_22
+	fdb	pattern_t1_23
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_22
+	fdb	pattern_t1_27
+	fdb	pattern_t1_28
+	fdb	pattern_t1_29
+	fdb	pattern_t1_28
+	fdb	pattern_t1_31
+	fdb	pattern_t1_28
+	fdb	pattern_t1_29
+	fdb	pattern_t1_28
+	fdb	pattern_t1_31
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_22
+	fdb	pattern_t1_23
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_22
+	fdb	pattern_t1_27
+	fdb	pattern_t1_28
+	fdb	pattern_t1_29
+	fdb	pattern_t1_28
+	fdb	pattern_t1_31
+	fdb	pattern_t1_28
+	fdb	pattern_t1_29
+	fdb	pattern_t1_28
+	fdb	pattern_t1_31
+	fdb	pattern_t1_52
+	fdb	pattern_t1_52
+	fdb	pattern_t1_54
+	fdb	pattern_t1_54
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_58
+	fdb	pattern_t1_59
+	fdb	pattern_t1_60
+	fdb	pattern_t1_61
+	fdb	pattern_t1_62
+	fdb	pattern_t1_63
+	fdb	pattern_t1_60
+	fdb	pattern_t1_61
+	fdb	pattern_t1_62
+	fdb	pattern_t1_63
+	fdb	pattern_t1_18
+	fdb	pattern_t1_01
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_02
+	fdb	pattern_t1_03
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_06
+	fdb	pattern_t1_07
+	fdb	pattern_t1_18
+	fdb	pattern_t1_01
+	fdb	pattern_t1_20
+	fdb	pattern_t1_21
+	fdb	pattern_t1_22
+	fdb	pattern_t1_23
+	fdb	pattern_t1_20
+	fdb	$ffff
+	fdb	00

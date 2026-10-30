@@ -28,6 +28,9 @@ His site describes three versions:
   Perl script turns the dump into CoCoSID pattern data, and his page walks
   through the steps.
 
+COCOSID3, the latest, is rebuilt here from his source in `cocosid3/` (see
+[COCOSID3](#cocosid3) below).
+
 ### Where this disk fits
 
 - `COCOSID2.DSK` is byte-identical to `cocosid.dsk` in the Color Computer
@@ -83,6 +86,11 @@ Sources:
 | `tools/decb_extract.py` | Extracts the live files from a Disk BASIC `.DSK` image |
 | `tools/dis6809.py` | Code-tracing 6809 disassembler for LOADM binaries |
 | `tools/songdump.py` | Decodes the song data into `song/song.asm` |
+| `files/cocosid3/COCOSID3.BIN` | COCOSID3 (*R-Type*, CoCo 3), extracted from the author's 2012 texture demo disk |
+| `cocosid3/` | COCOSID3 rebuilt from the author's source, with its song recovered from the binary; see its README |
+| `tools/cid3dump.py` | Recovers COCOSID3's song files from the binary |
+| `tools/cocosid3_lwasm.py` | Makes the author's COCOSID3 source build with lwasm |
+| `tools/decb_cmp.py` | Compares what two LOADM binaries load into memory |
 | `docs/sid-format.md` | The C64 `.sid` (PSID/RSID) format and how the author converted `.sid` tunes for CoCoSID |
 | `third-party/` | The author's original files (sources, disks), unmodified; see its README |
 | `LICENSE` | MIT, for this project's own work only (see License below) |
@@ -221,6 +229,21 @@ project follows the code.
   later `ADDB #`, and the sum goes straight to the DAC at `$FF20`. The
   patched operand bytes are labelled with `EQU`s (`V1_PHASE`, `V1_SAMPLE`, ...).
 
+## COCOSID3
+
+COCOSID3 (2012) is the author's last CoCoSID. It plays *R-Type* on a
+CoCo 3 and was converted automatically from a `.sid` dump. Its binary is
+on his 2012 texture demo disk and his source is in `third-party/cocosid3/`,
+but the package lacks the three song files the source includes.
+
+`cocosid3/` recovers those from the binary. With them, his source (with six
+small edits for lwasm) assembles to exactly the bytes `COCOSID3.BIN`
+loads, so it is not disassembled separately. Its README has the build,
+the memory map and what changed since the 2010 player. In short, the
+2010 player is a sequencer with notes and instruments. COCOSID3 plays a
+compressed frame-by-frame dump of the SID registers, at twice the sample
+rate and one song step per 50 Hz frame.
+
 ## Requirements
 
 - Python 3 (no third-party packages)
@@ -234,6 +257,8 @@ tools, `cocosid.ann`, the documentation and the issue tracker files.
 
 The license does not cover the CoCoSID program or anything derived from it.
 That means `COCOSID2.DSK`, everything in `files/`, the generated listings
-`cocosid.asm` and `song/song.asm`, and `third-party/`. These remain the
-copyright of Rémi Veilleux; the music is Rob Hubbard's *Commando*. They
+`cocosid.asm` and `song/song.asm`, the generated `cocosid3/cocosid3.asm` and
+`cocosid3/song/`, and `third-party/`. These remain the copyright of Rémi
+Veilleux. The music is Rob Hubbard's *Commando* and, in COCOSID3, Chris
+Hülsbeck and Ramiro Vaca's *R-Type*. They
 are included for study and preservation. `LICENSE` lists the exact scope.

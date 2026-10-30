@@ -81,6 +81,9 @@ From the author's files page, via the Wayback Machine:
 |---|---|---|
 | `REM_TEXTURE_DEMO.dsk` | 2012-01-08 | CoCo 3 disk with `COCOSID3.BIN` (the *R-Type* player, 10,336 bytes), `WOLF.BIN` and `TEXTURE.BIN` (64,592 bytes) |
 
+`COCOSID3.BIN` is extracted to `files/cocosid3/`. The top-level `cocosid3/`
+folder rebuilds it from his `cocosid3.asm` (the `cocosid3/` section above).
+
 ## Not found
 
 - The automatically converted COCOSID2 that the author's site describes.

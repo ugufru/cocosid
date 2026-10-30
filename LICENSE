@@ -25,16 +25,20 @@ SOFTWARE.
 Scope
 
 This license covers only the original work in this repository: the tools in
-tools/, cocosid.ann, the documentation (README.md, song/README.md, docs/), and
-the issue tracker files (issues.jsonl, issues.html).
+tools/, cocosid.ann, the documentation (README.md, song/README.md,
+cocosid3/README.md, docs/), and the issue tracker files (issues.jsonl,
+issues.html).
 
 It does not cover the following, which remain the copyright of their owners
 and are not licensed by this file:
 
 - COCOSID2.DSK and everything in files/: CoCoSID and the other programs on
-  the disk, by Remi Veilleux.
+  the disks, by Remi Veilleux.
 - cocosid.asm and song/song.asm: generated from Remi Veilleux's binary, so
   they reproduce his program and his transcription of the music. The music
   is "Commando" by Rob Hubbard.
+- cocosid3/cocosid3.asm and cocosid3/song/: Remi Veilleux's COCOSID3
+  source, edited only to build with lwasm, and its song data recovered from
+  his binary. The music is "R-Type" by Chris Huelsbeck and Ramiro Vaca.
 - Everything in third-party/, except third-party/README.md. See that README
   for the source and copyright of each file.
