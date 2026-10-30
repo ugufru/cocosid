@@ -1,0 +1,2449 @@
+                      ; Remi Veilleux, 2010
+                      ; This music synthesizer program mimics the sound of a Commodore 64 SID chip
+                      ; The music "COMMANDO.SID", by Rob Hubbard, has been hand converted to my CoCo synth-player music format
+                      ; Features:
+                      ; - 3 independant channels
+                      ; - Square, Sin, Sawtooth, Triangle, and White Noise waveforms
+                      ; - Supports Attack, Sustain, Release
+                      ; - 3 volume level
+                      ; - Glide and pitch bend
+                      ; - C64-style Arpeggio
+                      ; - 19 KHz realtime mixing quality sound output
+                      
+                      ; Note: With MESS, use -wavwrite output.wav to output a wave for analysis
+                      
+                      
+                      ;FIRQADDR       equ     $fef4   ; where FIRQ jumps
+                      ;INIT0          equ     $ff90   ; GIME Initialization register 0
+                      ;IRQENR         equ     $ff92   ; IRQ interrupt source
+                      ;FIRQENR                equ     $ff93   ; FIRQ interrupt source
+                      ;VMODE          equ     $ff98   ; Video mode - sets lines per row, text/graphics
+                      ;VRES           equ     $ff99   ; Video resolution - sets size
+                      ;BORDERCOLOR    equ     $ff9a   ; screen border color
+                      ;V_OFFSETMSB    equ     $ff9d   ; video memory start register msb
+                      ;V_OFFSETLSB    equ     $ff9e   ; video memory start register lsb
+                      ;H_OFFSET       equ     $ff9f   ; horizontal offset + virtual screen
+                      ;MMUPAGE                equ     $ffa4   ; MMU page register
+FF40                  DISKCONTROLLER  equ     $ff40   ; disk controller register
+0080                  BYTES_PER_ROW   equ     128     ; set horizontal resolution in byte per row (at 4 bit per pixel)
+                      
+0028                  NOISE_FREQ_DOWN equ     40      ; value that lowers NOISE waveform down to mimic C64
+                      
+0000                  cycle_ratio     equ     76 / 92
+                      
+                              ; Memory mapping:
+                              ; $0000..$0FFF  ; free
+                              ; $1000..$47FF  ; source image for background screen
+                              ; $4800..$7FFF  ; code, waveform, music, etc.
+                              ; $8000..$FCFF  ; 320x200 16 color graphic page mapped
+                      
+                      ;               org $1000
+                      ;               includebin cocosid_title_test2.bin
+                      
+                                              org     0
+0000                  ssynth_freq             rmb     1       ; current note, doubled, used as 16-bit index into note array (69*2) should give 'A 440 Hz'
+                      ;ssynth_synth_freq      rmb     2       ; current frequency used in mixer
+                      ;ssynth_synth_out       rmb     1       ; 8-bit output result used in mixer
+0001                  ssynth_wavetable        rmb     2       ; currently active wavetable for synth
+0003                  ssynth_note_wave        rmb     2       ; selected note wavetable for synth
+0005                  ssynth_wave_frag        rmb     1       ; wavetable fragment index synth
+0006                  ssynth_voice_ptr        rmb     2       ; pointer into current playing pattern for synth
+0008                  ssynth_song_ptr         rmb     2       ; pointer into song (i.e.: to find the current pattern)
+000A                  ssynth_note_duration    rmb     1       ; current note duration for synth
+000B                  ssynth_pause_duration   rmb     1       ; current note pause duration for synth
+000C                  ssynth_slur_note        rmb     1       ; same inital value as pause_duration: used to check if next note will be 'slurred'
+000D                  ssynth_pitch_alteration rmb     2       ; pitch alteration: added to each note being played
+000F                  ssynth_pitch_glide      rmb     2       ; pitch glide speed: added to pitch alteration every frame
+0011                  ssynth_last_vu          rmb     1       ; 'vu' meter position: used to clear last frame value
+0012                  sizeof_ssynth           equ     *
+                      
+                                      org     $4800
+                      
+                      ; jump to 'real startup' to allow definining procs before using them
+4800  7E484F          start           jmp     start2
+                      
+                      ; variables...
+4803  00              tmp1            fcb     0
+4804  00              tmp2            fcb     0
+4805  00              tmp3            fcb     0
+4806  0000            dtmp1           fdb     0
+4808  0000            dtmp2           fdb     0
+480A  0000            dtmp3           fdb     0
+480C  00              loop1           fcb     0
+480D  00              loop2           fcb     0
+                      ;loop_hi                fcb     0
+480E  00              loop_lo         fcb     0
+                      
+480F  FF              modulate_dir    fcb     -1
+4810  FF              modulate_index  fcb     255
+4811  00              frame_counter   fcb     0
+4812  0000            backup_s        fdb     0
+4814  00              pattern_counter fcb     0
+                      
+4815                  synth1          rmb     sizeof_ssynth
+4827                  synth2          rmb     sizeof_ssynth
+4839                  synth3          rmb     sizeof_ssynth
+                      
+484B                  disable_interrupt
+                      ;       clr     FIRQENR         ; disable the interrupt register
+                      ;       clr     IRQENR          ; disable these to be safe
+484B  39                      rts
+                      
+                      ;MyPalette
+                      ;       ;fcb    14,00,49,07,53,05,56,33,03,62,60,35,63,29,57,59
+                      ;       fcb     32,34,35,36,54,6,4,7,0,56,52,16,38,63,63,63
+                      
+                      ; 3. Set 16 palette colors
+                      ;setpalette
+                      ;       ldx     #$ffb0          ; set palette entries
+                      ;       leay    MyPalette,pcr
+                      ;       ldb     #8              ; 8x2 entries
+                      ;       stb     tmp1
+                      ;1      ldd     ,y++
+                      ;       std     ,x++
+                      ;       dec     tmp1
+                      ;       bne     1B
+484C  39                      rts
+                      
+                      ;***********************************************
+                      ; Set graphics memory - sets 32K in 0x8000-0xFFFF
+                      ; from MMU pages 0x60000 on up
+                      ; interrupts should be disabled to use this
+                      ; REGA - first page to load (nice start pages are $30 and $34)
+                      ;***********************************************
+                      ;SetGraphicsMem
+                      ;       ldx     #MMUPAGE        ; mapped to $8000-$9FFF, then more
+                      ;       ldb     #4              ; 4 pages to load
+                      ;1      sta     ,x+
+                      ;       inca                    ; next page
+                      ;       decb
+                      ;       bne     1B
+484D  39                      rts
+                      
+                      ;clearscreen
+                      ;       ldx     #$8000
+                      ;       ldd     #$ffff
+                      ;1      std     ,x++
+                      ;       cmpx    #$fd00
+                      ;       bne     1B
+484E  39                      rts
+                      
+                      ;*******************
+                      ; Quick'n Dirty RLE uncompressor
+                      ; Very poor compression ratio.
+                      ; Format is: ($pack_lastcolor<<4) + ($pack_count)
+                      ; Each 'batch' of color means a color must be repeated 'pack_count+1' times
+                      ; Note: Completely linear: wraps at screen edge to next line.
+                      ;copy_title
+                      ;
+                      ;copy_title_uncompressed
+                      ;       ; source image dimension: width=320 h=200
+                      ;       ldx     #$8000
+                      ;       ldy     #$1000
+                      ;
+                      ;       clr     tmp1    ; indicates if we are output a 'odd' or 'even' pixel
+                      ;uncompressed_next_batch
+                      ;       ldb     ,y
+                      ;       andb    #$f     ; 'b' = get 'loop count'
+                      ;       incb            ; increment by 1 to get real loop count
+                      ;uncompressed_next_pixel
+                      ;       lda     tmp1
+                      ;       beq     uncompressed_odd
+                      
+                      ;uncompressed_even
+                      ;       ; uncompressed an 'even' pixel: odd pixel is already in place in video memory
+                      ;       lda     ,y
+                      ;       lsra
+                      ;       lsra
+                      ;       lsra
+                      ;       lsra            ; 'a' = get 4-bit color
+                      ;       ora     ,x      ; or with existing pixel
+                      ;       sta     ,x+     ; and output result, advance x to next pixel
+                      ;       clr     tmp1    ; set tmp1 back to '0'
+                      ;       bra     uncompressed_pixel_done
+                      
+                      ;uncompressed_odd
+                      ;       ; uncompressed an 'odd' pixel:
+                      ;       lda     ,y
+                      ;       anda    #$f0    ; mask-out loop count
+                      ;       sta     ,x      ; output odd and clear even pixel
+                      ;       inc     tmp1    ; set tmp1 to '1'
+                      
+                      ;uncompressed_pixel_done
+                      ;       decb
+                      ;       bne     uncompressed_next_pixel
+                      ;       leay    1,y     ; advance to next compressed data
+                      ;       cmpx    #$8000+320*200/2
+                      ;       blo     uncompressed_next_batch
+                      ;       rts
+                      
+                      ;***********************
+                      ; reset vu meter display and variable data
+                      ;reset_vu
+                      ;       clr     frame_counter
+                      ;       clr     pattern_counter
+                      ;
+                      ;       ; clear song progress indicator
+                      ;       ; position on screen: 48,161
+                      ;       ldx     #$8000+160*160+48/2
+                      ;       ldy     #$8000+161*160+48/2
+                      ;       ldu     #$8000+162*160+48/2
+                      ;       lda     #123
+                      ;       ldb     #$BB    ; clear color
+                      ;1      stb     ,x+
+                      ;       stb     ,y+
+                      ;       stb     ,u+
+                      ;       deca
+                      ;       bne     1B
+                      ;       rts
+                      
+                      ;       ; simple beat/pattern counter
+                      ;vu_display
+                      ;       ; position on screen: 52,141
+                      ;       ldy     #$8000+141*160+52/2
+                      ;
+                      ;       ldb     frame_counter
+                      ;       andb    #%111000        ; pattern counter
+                      ;       leay    b,y
+                      ;
+                      ;       lda     frame_counter
+                      ;       anda    #%100   ; beat counter
+                      ;       bne     beat_hide
+                      ;       ; show beat flash
+                      ;       ldd     #$ffff  ; indicator color
+                      ;       std     ,y
+                      ;       bra     beat_done
+                      ;beat_hide
+                      ;       ldd     #$BBBB  ; clear color
+                      ;       std     ,y
+                      ;beat_done
+                      ;       rts
+                      
+                      ;song_display
+                      ;       ; song progress indicator
+                      ;       ; total song length is 123 patterns
+                      ;       ; position on screen: 48,161
+                      ;       ldx     #$8000+160*160+48/2
+                      ;       ldb     frame_counter
+                      ;       andb    #%11111         ; 32 notes pattern counter
+                      ;       bne     progress_done
+                      ;       ; advance to next pattern
+                      ;       ldb     pattern_counter
+                      ;       abx
+                      ;       lda     #$ff    ; indicator color
+                      ;       sta     ,x      ; put a pixel
+                      ;       leax    160,x
+                      ;       sta     ,x      ; put a pixel
+                      ;       leax    160,x
+                      ;       sta     ,x      ; put a pixel
+                      ;       inc     pattern_counter
+                      ;progress_done
+                      ;       rts
+                      
+                      ;***********************
+                      ; Main program start
+484F                  start2
+484F  8648                    lda     #$48
+4851  1F8B                    tfr     a,dp
+                              setdp   $48             ; set dp into 'variable storage' at org $4800
+                      
+                              ; initalize:
+4853  1A50                    orcc    #$50            ; disable interrupts
+                      ;       sta     $ffd9           ; high speed poke (1.79 MHz)
+                      
+4855  10CE8000                lds     #$8000          ; set stack starting at $8000
+                      
+                              ; Disable PIA HSYNC and VSYNC irq
+4859  B6FF01                  lda     $ff01
+485C  84FE                    anda    #%11111110
+485E  B7FF01                  sta     $ff01
+                      
+4861  B6FF03                  lda     $ff03
+4864  84FE                    anda    #%11111110
+4866  B7FF03                  sta     $ff03
+                      
+4869  7FFF40                  clr     DISKCONTROLLER  ; turn off all drive motors immediately
+                      
+486C  9D4B                    jsr     disable_interrupt
+                      
+                      ;       lda     #%01111100      ; Coco3, MMU on, DRAM constant, IRQ on, FIRQ on, Vector RAM at FEXX on, standard SCS, 16K internal 16K external ROM
+                      ;       sta     INIT0
+                      
+                              ; init graphic mode
+                      ;       lda     #%10000000
+                      ;       sta     VMODE           ; graphics mode, 60 Hz, normal burst, 1 line per row
+                      ;       lda     #%00111110      ; Line Per Field 200 lines, Horizontal 128 bytes per row, 16 Colors (4bpp) 256 * 200
+                      ;       sta     VRES
+                      ; A graphic page requires: 160 * 200 = 32000 bytes ($7D00)
+                      
+                      ;       ldd     #$C000          ; first block of graphics screen at $60000 / 8
+                      ;       std     V_OFFSETMSB     ; vidstart offset
+                      
+                              ;lda    #57             ; Mimic C64 border color 57 = 170 170 255
+                      ;       lda     #63             ; white
+                      ;       sta     #BORDERCOLOR
+                      
+                      ;       lda     #$30 ; set the memory page at $8000..$FD00
+                      ;       jsr     SetGraphicsMem
+                      
+                      ;       jsr     setpalette
+                      ;       jsr     clearscreen
+                      ;       jsr     copy_title
+                      
+486E  BD4ABC                  jsr     generate_waveform
+                      
+                              ; entry point for reset/restart song completely
+4871                  reset_restart
+4871  10CE8000                lds     #$8000          ; reset stack starting at $8000
+                      ;       jsr     reset_vu
+4875  9D79                    jsr     init_sound
+4877  205E                    bra     loop_sound
+                      
+4879                  init_sound
+4879  B6FF23                  lda     $ff23           ; SOUND CONTROL: turn on sound
+487C  8A08                    ora     #8
+487E  B7FF23                  sta     $ff23
+                      
+4881  B6FF21                  lda     $ff21
+4884  84FB                    anda    #~4             ; SET FOR DATA DIRECTION
+4886  B7FF21                  sta     $ff21
+                      
+4889  F6FF20                  ldb     $ff20           ; GET CURRENT DIRECTIONS
+488C  C6FC                    ldb     #%11111100      ; DAC-OUT, TAPE&RS-232:IN
+488E  F7FF20                  stb     $ff20
+                      
+4891  8A04                    ora     #4              ; RESET TO NORMAL
+                      
+4893  B7FF21                  sta     $ff21
+                      
+                              ; initialize song
+                              ; Initialize start values for all synth
+4896  CC542D                  ldd     #song_voice1
+4899  DD1D                    std     synth1+ssynth_song_ptr
+489B  CC5478                  ldd     #song_voice2
+489E  DD2F                    std     synth2+ssynth_song_ptr
+48A0  CC54C1                  ldd     #song_voice3
+48A3  DD41                    std     synth3+ssynth_song_ptr
+48A5  4F                      clra
+48A6  5F                      clrb
+48A7  971F                    sta     synth1+ssynth_note_duration
+48A9  9720                    sta     synth1+ssynth_pause_duration
+48AB  DD1B                    std     synth1+ssynth_voice_ptr
+48AD  DD22                    std     synth1+ssynth_pitch_alteration
+48AF  DD24                    std     synth1+ssynth_pitch_glide
+                      
+48B1  9731                    sta     synth2+ssynth_note_duration
+48B3  9732                    sta     synth2+ssynth_pause_duration
+48B5  DD2D                    std     synth2+ssynth_voice_ptr
+48B7  DD34                    std     synth2+ssynth_pitch_alteration
+48B9  DD36                    std     synth2+ssynth_pitch_glide
+                      
+48BB  9743                    sta     synth3+ssynth_note_duration
+48BD  9744                    sta     synth3+ssynth_pause_duration
+48BF  DD3F                    std     synth3+ssynth_voice_ptr
+48C1  DD46                    std     synth3+ssynth_pitch_alteration
+48C3  DD48                    std     synth3+ssynth_pitch_glide
+                      
+48C5  8601                    lda     #1      ; set 'no slur'
+48C7  9721                    sta     synth1+ssynth_slur_note
+48C9  9733                    sta     synth2+ssynth_slur_note
+48CB  9745                    sta     synth3+ssynth_slur_note
+                      
+48CD  CC4BAD                  ldd     #wavetable      ; set all voice initially to 'mute' (wavetable entry 0)
+48D0  DD16                    std     synth1+ssynth_wavetable
+48D2  DD28                    std     synth2+ssynth_wavetable
+48D4  DD3A                    std     synth3+ssynth_wavetable
+48D6  39                      rts
+                      
+48D7                  loop_sound
+48D7  BD49B3                  jsr     process_song
+                      
+48DA  9DEA                    jsr     sin_wave2
+48DC  BD4A81                  jsr     rect_modulator
+                      ;       jsr     vu_display
+                      
+48DF  9DEA                    jsr     sin_wave2
+48E1  BD4A81                  jsr     rect_modulator
+                      ;       jsr     song_display
+48E4  0C11                    inc     frame_counter   ; increment general frame counter
+                      
+48E6  9DEA                    jsr     sin_wave2
+                      
+48E8  20ED                    bra     loop_sound
+                      
+                      
+48EA                  sin_wave2
+48EA  10DF12                  sts     backup_s
+                      
+                              ; setup 3 synths frequency and waveform
+                      
+                              ; Synth 1: final wave pointer in Y
+48ED  9E16                    ldx     synth1+ssynth_wavetable
+48EF  961A                    lda     synth1+ssynth_wave_frag
+48F1  3086                    leax    a,x
+48F3  10AE81                  ldy     ,x++    ; read 16-bit wave pointer into y
+48F6  E684                    ldb     ,x      ; read pitch alteration into b
+48F8  8B04                    adda    #4      ; 4 bytes per entry, we have 16 entries
+48FA  971A                    sta     synth1+ssynth_wave_frag
+                              ; setup final frequency
+48FC  8E532D                  ldx     #note_table
+48FF  DB15                    addb    synth1+ssynth_freq      ; 'b' contain pitch alteration: add base freq
+4901  3A                      abx
+4902  EC84                    ldd     ,x
+4904  D322                    addd    synth1+ssynth_pitch_alteration  ; add current pitch alteration
+                      ;       ldx     #selfmod_addd_freq1+1
+4906  58                      lslb
+4907  49                      rola
+                      ;       std     ,x      ; store into self modifying code the final frequency
+4908  FD4958                  std     selfmod_addd_freq1+1
+490B  DC22                    ldd     synth1+ssynth_pitch_alteration  ; process pitch alteration glide
+490D  D324                    addd    synth1+ssynth_pitch_glide
+490F  DD22                    std     synth1+ssynth_pitch_alteration
+                      
+                              ; Synth 2: final wave pointer in U
+4911  9E28                    ldx     synth2+ssynth_wavetable
+4913  962C                    lda     synth2+ssynth_wave_frag
+4915  3086                    leax    a,x
+4917  EE81                    ldu     ,x++    ; read 16-bit wave pointer into u
+4919  E684                    ldb     ,x      ; read pitch alteration into b
+491B  8B04                    adda    #4      ; 4 bytes per entry, we have 16 entries
+491D  972C                    sta     synth2+ssynth_wave_frag
+                              ; setup final frequency
+491F  8E532D                  ldx     #note_table
+4922  DB27                    addb    synth2+ssynth_freq      ; 'b' contain pitch alteration: add base freq
+4924  3A                      abx
+4925  EC84                    ldd     ,x
+                      ;       ldx     #selfmod_addd_freq2+1
+4927  58                      lslb
+4928  49                      rola
+                      ;       std     ,x      ; store into self modifying code the final frequency
+4929  FD4964                  std     selfmod_addd_freq2+1
+                      
+                              ; Synth 3: final wave pointer in S
+492C  9E3A                    ldx     synth3+ssynth_wavetable
+492E  963E                    lda     synth3+ssynth_wave_frag
+4930  3086                    leax    a,x
+4932  10EE81                  lds     ,x++    ; read 16-bit wave pointer into s
+4935  E684                    ldb     ,x      ; read pitch alteration into b
+4937  8B04                    adda    #4      ; 4 bytes per entry, we have 16 entries
+4939  973E                    sta     synth3+ssynth_wave_frag
+                              ; setup final frequency
+493B  8E532D                  ldx     #note_table
+493E  DB39                    addb    synth3+ssynth_freq      ; 'b' contain pitch alteration: add base freq
+4940  3A                      abx
+4941  EC84                    ldd     ,x
+                      ;       ldx     #selfmod_addd_freq3+1
+4943  58                      lslb
+4944  49                      rola
+                      ;       std     ,x      ; store into self modifying code the final frequency
+4945  FD4970                  std     selfmod_addd_freq3+1
+                      
+0049                  synthdp equ     first_selfmod / 256
+4948  8649                    lda     #synthdp
+494A  1F8B                    tfr     a,dp
+                              setdp   synthdp
+                      
+                      ;       ldx     #mixtable+128 ; 3
+494C  8EFF20                  ldx     #$ff20
+                      
+                              ; loop for 205 iteration (to output 50Hz)
+                              ; 205 -> 0 + 205
+                      ;       lda     #1      ; should be #0 but set to #1 to account for first inner loop
+                      ;       sta     loop_hi
+494F  86E3                    lda     #235-8  ; subtract #8 to speed up a bit since song processing slows down slightly
+4951  B7480E                  sta     loop_lo
+4954                  synth_mixer
+                              ; First synth:
+4954                  first_selfmod
+4954                  selfmod_ldd_freq1
+4954  CC0000                  ldd     #$0000                  ; 3
+4957                  selfmod_addd_freq1
+4957  C30000                  addd    #$0000                  ; 4
+495A  DD55                    std     selfmod_ldd_freq1+1     ; 6 (5 if direct)
+495C  E6A6                    ldb     a,y                     ; 5
+495E  D777                    stb     selfmod_addb_sample1+1  ; 5 (4 if direct)
+                              ; Total for synth 1: 23 clocks
+                      
+                              ; Second synth:
+4960                  selfmod_ldd_freq2
+4960  CC0000                  ldd     #$0000                  ; 3
+4963                  selfmod_addd_freq2
+4963  C30000                  addd    #$0000                  ; 4
+4966  DD61                    std     selfmod_ldd_freq2+1     ; 6 (5 if direct)
+4968  E6C6                    ldb     a,u                     ; 5
+496A  D779                    stb     selfmod_addb_sample2+1  ; 5 (4 if direct)
+                              ; Total for synth 2: 23 clocks
+                      
+                              ; Third synth:
+496C                  selfmod_ldd_freq3
+496C  CC0000                  ldd     #$0000                  ; 3
+496F                  selfmod_addd_freq3
+496F  C30000                  addd    #$0000                  ; 4
+4972  DD6D                    std     selfmod_ldd_freq3+1     ; 6 (5 if direct)
+4974  E6E6                    ldb     a,s                     ; 5
+                              ; Total for synth 3: 18 clocks
+                      
+4976                  selfmod_addb_sample1
+4976  CB00                    addb    #$00                    ; 2
+4978                  selfmod_addb_sample2
+4978  CB00                    addb    #$00                    ; 2
+                              ;stb    $ff20                   ; 5
+497A  E784                    stb     ,x                      ; 4
+                              ; Total for mixing + inner loop: 18
+                      
+497C  7A480E                  dec     loop_lo                 ; 6
+497F  26D3                    bne     synth_mixer             ; 3
+                      ;       dec     loop_hi                 ; 6
+                      ;       bne     synth_mixer             ; 3
+                      
+                      
+                              ; Total for 1 sample loop iteration for 3 channel: (we are not accounting for outer loop, insignificant)
+                              ; 82 clocks (77 clocks)  now 76!  need to recalc all this:
+                              ; Effective sample rate:
+                              ; 1789772 / 82 = 21826 Hz (slow: 10913 Hz) (direct: 23243.8/11621.9)
+                              ; To have a C64 Pal frequency of 50Hz, we need to play:
+                              ; 21826 / 50 Hz = 436 iteration (which is 256 + 180 loop)
+                              ; slow: 10913 / 50 Hz = 218 iterations
+                              ; direct: 465/232
+                              ; For a waveform of 256 sample played at 'freq 1.0' (i.e.: freq=256), we have:
+                              ; 21826 / 256 = 85.26 Hz
+                              ; direct: 23243.8 / 256 = 90.796 Hz
+                      
+                              ; Speed:
+                              ; We play 361 samples x 4 batch = 1444 samples
+                              ; 18080 / 1444 = 12.5 note per second
+                              ; 12.5 * 60 = 750 note per minute
+                              ; 750 / 8 = 93.75 bpm, using 1/8th note duration
+                      
+                              ; C64 Commando plays at 125 BPM
+                              ; So: 125 * 8 = 1000 / 60 = 16.7 note per second
+                              ; 19456 / 16.7 = 1165 samples / 389 = exactly 3 batchs
+                      
+4981  8648                    lda     #$48
+4983  1F8B                    tfr     a,dp
+                              setdp   $48
+                      
+4985  10DE12                  lds     backup_s
+4988  39                      rts
+                      
+                      
+                      
+                      ;*******************
+4989                  note_continue
+                              ; while a note is playing, this channel does nothing else
+4989  E645                    ldb     ssynth_wave_frag,u
+498B  4A                      deca
+498C  A74A                    sta     ssynth_note_duration,u
+                              ; when we reach note duration 0, it's time to play 'release' part of wave_frag
+498E  270B                    beq     note_continue_release
+                              ; wave_frag needs to wrap around from 12 to 48 while the note plays
+4990  8630                    lda     #48
+4992  A145                    cmpa    ssynth_wave_frag,u
+4994  2604                    bne     note_continue_sustain_done
+4996  860C                    lda     #12
+4998  A745                    sta     ssynth_wave_frag,u
+499A                  note_continue_sustain_done
+499A  39                      rts
+499B                  note_continue_release
+                              ; 'release' starts at fragment offset 48
+                              ; slur check if 'slur_note' is zero for this note, we DON'T play the 'release' part
+                              ; in order to 'slur' note
+499B  A64C                    lda     ssynth_slur_note,u
+499D  2604                    bne     note_continue_release_accept
+499F  860C                    lda     #12     ; set fragment to offset start of 'sustain' part: this means we are not doing the release
+49A1  2002                    bra     note_continue_release_cont
+49A3                  note_continue_release_accept
+49A3  8630                    lda     #48     ; ok, jump to 'release' portion
+49A5                  note_continue_release_cont
+49A5  A745                    sta     ssynth_wave_frag,u
+49A7  39                      rts
+                      
+49A8                  pause_continue
+                              ; while a note is pausing, this channel does nothing else
+49A8  4A                      deca
+49A9  A74B                    sta     ssynth_pause_duration,u
+49AB  CC4BAD                  ldd     #wavetable
+49AE  ED41                    std     ssynth_wavetable,u      ; set silence wavetable #00 as active
+49B0  6F45                    clr     ssynth_wave_frag,u      ; leave 'wave_frag' stuck at fragment 0
+49B2  39                      rts
+                      
+                      ;*********************
+                      ; process_song
+49B3                  process_song
+                              ; process each voice
+49B3  CE4815                  ldu     #synth1
+49B6  BD49C2                  jsr     process_voice
+                      
+49B9  CE4827                  ldu     #synth2
+49BC  BD49C2                  jsr     process_voice
+                      
+49BF  CE4839                  ldu     #synth3
+                              ; optimisation: don't need to 'jsr / rts', process_voice will 'rts' itself
+                      
+49C2                  process_voice
+                              ; First, check if we need to fetch a new pattern: (i.e.: when our voice_ptr is 0000)
+49C2  EC46                    ldd     ssynth_voice_ptr,u
+49C4  261A                    bne     process_voice_cont
+                              ; Fetch a pattern from song ptr and move song_ptr to next
+49C6                  new_pattern_request
+49C6  AE48                    ldx     ssynth_song_ptr,u
+49C8  E680                    ldb     ,x+
+                              ; if pattern is 00, we have reached end of pattern data for this track
+49CA  2706                    beq     new_pattern_end
+                              ; if pattern is 255 (-1), special case: instant jump to complete reset/restart
+49CC  C1FF                    cmpb    #255
+49CE  2605                    bne     new_pattern_ok
+49D0  0E71                    jmp     reset_restart
+49D2                  new_pattern_end
+49D2  6F45                    clr     ssynth_wave_frag,u      ; leave 'wave_frag' stuck at fragment 0 forever
+49D4  39                      rts
+49D5                  new_pattern_ok
+                              ; update song ptr
+49D5  AF48                    stx     ssynth_song_ptr,u
+                              ; now compute pattern pointer location
+49D7  8E553B                  ldx     #pattern_ptr-2
+49DA  58                      lslb    ; each pattern ptr is 16-bit so multiply by 2 to get 16-bit offset
+49DB  3A                      abx
+49DC  AE84                    ldx     ,x
+49DE  AF46                    stx     ssynth_voice_ptr,u
+                      
+49E0                  process_voice_cont
+                              ; Now check is a note is currently in progress (if note_duration is not 0)
+49E0  A64A                    lda     ssynth_note_duration,u
+49E2  26A5                    bne     note_continue
+                              ; ..and check is a silence/pause is in progress (if pause_duration is not 0)
+49E4  A64B                    lda     ssynth_pause_duration,u
+49E6  26C0                    bne     pause_continue
+                      
+                              ; Process commands from song voice data:
+49E8  AE46                    ldx     ssynth_voice_ptr,u
+49EA  E680                    ldb     ,x+     ; fetch command number
+49EC  58                      lslb
+49ED  4F                      clra
+49EE  C349F7                  addd    #cmd_jumptable
+49F1  DD06                    std     dtmp1
+                      
+49F3  6E9F4806                jmp     [dtmp1]
+49F7                  cmd_jumptable
+49F7  2014                    bra     command_00
+49F9  2014                    bra     command_01
+49FB  2016                    bra     command_02
+49FD  203F                    bra     command_03
+49FF  2064                    bra     command_04
+4A01  2062                    bra     command_05
+4A03  2060                    bra     command_06
+4A05  206A                    bra     command_07
+4A07  2070                    bra     command_08
+                      
+4A09                  command_done
+4A09  AF46                    stx     ssynth_voice_ptr,u      ; update voice pointer
+4A0B  20B5                    bra     process_voice   ; reloop: until we hit a play note command
+                      
+4A0D                  command_00
+                              ; End of pattern: go to new pattern request
+4A0D  20B7                    bra     new_pattern_request
+4A0F                  command_01
+4A0F  8601                    lda     #1
+4A11  20F6                    bra     command_done
+4A13                  command_02
+4A13  3440                    pshs    u       ; WARNING: 'u' synth pointer is not used and invalided in this command
+                              ; Wavetable define:
+4A15  863C                    lda     #60     ; 60 bytes per entry
+4A17  E680                    ldb     ,x+     ; fetch wavetable index
+4A19  3D                      mul
+4A1A  C34BAD                  addd    #wavetable      ; set destination
+4A1D  1F02                    tfr     d,y
+4A1F  860F                    lda     #15     ; copy 15 pointers
+4A21  9703                    sta     tmp1
+4A23  EC81            wavecpy ldd     ,x++    ; read 'a=wave index', 'b=pitch alteration'
+4A25  8110                    cmpa    #16     ; Special case: check if this is a 'noise' waveform (i.e.: if wave >= 16)
+4A27  2D02                    blt     1F
+                              ; for noise waveform, we lower the pitch to mimic the C64 low-frequency white noise generator
+4A29  C028                    subb    #NOISE_FREQ_DOWN        ; lower pitch several note down
+4A2B  48              1       lsla
+4A2C  CE4B7D                  ldu     #waveform_lookup
+4A2F  EEC6                    ldu     a,u
+4A31  EFA1                    stu     ,y++
+4A33  58                      aslb    ; pre-multiply by 2 for adequate note shift (signed 8-bit)
+4A34  E7A1                    stb     ,y++    ; (note: 1 byte is wasted here for 32-bit alignment purpose)
+4A36  0A03                    dec     tmp1
+4A38  26E9                    bne     wavecpy
+4A3A  3540                    puls    u
+                      
+4A3C  20CB                    bra     command_done
+4A3E                  command_03
+                              ; play note
+4A3E  EC81                    ldd     ,x++    ; a=note, b=length
+4A40  48                      lsla
+4A41  A7C4                    sta     ssynth_freq,u
+4A43  5A                      decb            ; pre-decrement duration by 1 since this loop will play '1' duration
+4A44  E74A                    stb     ssynth_note_duration,u
+                      
+4A46  A64C                    lda     ssynth_slur_note,u      ; check if previous note as a 'slur_note' indication
+4A48  2705                    beq     play_note_slurred       ; yes: slur!
+4A4A  4F                      clra                            ; no: regular play: start fragment at 0
+4A4B  A745                    sta     ssynth_wave_frag,u      ; set fragment when starting a new note
+4A4D  2000                    bra     play_note_cont
+4A4F                  play_note_slurred
+                              ; Unneeded: just keep fragment where it was: it will continue and wrap around as normal
+                              ;lda    #12                     ; set starting frag to skip 'attack' since we are slurring
+4A4F                  play_note_cont
+                      
+4A4F  A680                    lda     ,x+     ; a=pause duration
+4A51  A74B                    sta     ssynth_pause_duration,u
+4A53  A74C                    sta     ssynth_slur_note,u      ; set both pause and slur as the same initial value
+4A55  AF46                    stx     ssynth_voice_ptr,u
+4A57  EC43                    ldd     ssynth_note_wave,u
+4A59  ED41                    std     ssynth_wavetable,u      ; set note wavetable as active
+                      
+                              ; release mod:
+                              ; if pause duration is not 0, then increase note length by 1 and decrease pause length by 1
+                              ; so the 'release' part will play in the first time of 'pause'
+                              ; this should make note longer and feel more 'attached' than the harsh mute pause
+4A5B  A64B                    lda     ssynth_pause_duration,u
+4A5D  2705                    beq     play_note_release_mod_skip
+4A5F  4A                      deca
+4A60  A74B                    sta     ssynth_pause_duration,u
+4A62  6C4A                    inc     ssynth_note_duration,u
+4A64                  play_note_release_mod_skip
+4A64  39                      rts
+4A65                  command_04
+                              ; unused
+4A65                  command_05
+                              ; unused
+4A65                  command_06
+                              ; Set note wavetable (which will be used for future playing notes)
+4A65  863C                    lda     #60     ; 60 bytes per entry
+4A67  E680                    ldb     ,x+     ; fetch wavetable index
+4A69  3D                      mul
+4A6A  C34BAD                  addd    #wavetable
+4A6D  ED43                    std     ssynth_note_wave,u
+4A6F  2098                    bra     command_done
+4A71                  command_07
+                              ; Set pitch alteration
+4A71  3001                    leax    1,x     ; skip empty byte since command is fdb 16-bit
+4A73  EC81                    ldd     ,x++
+4A75  ED4D                    std     ssynth_pitch_alteration,u
+4A77  2090                    bra     command_done
+4A79                  command_08
+                              ; Set Set pitch-glide speed
+4A79  3001                    leax    1,x     ; skip empty byte since command is fdb 16-bit
+4A7B  EC81                    ldd     ,x++
+4A7D  ED4F                    std     ssynth_pitch_glide,u
+4A7F  2088                    bra     command_done
+                      
+                      ;***************
+                      ; modulate the rect waveform over time: simulate a 'LFO' modulation
+                      ; Note: only 'rect256' 100% volume is modulated
+                      ; not 50% and 25% volume
+4A81                  rect_modulator
+4A81  8E7895                  ldx     #rect256
+4A84  D610                    ldb     modulate_index
+4A86  3A                      abx
+4A87  960F                    lda     modulate_dir
+4A89  2718                    beq     rect_mod_dir_0
+4A8B                  rect_mod_dir_1
+4A8B  8606                    lda     #-36+42
+4A8D  A784                    sta     ,x              ; modulate two byte per 'frame'
+4A8F  A782                    sta     ,-x
+4A91  A782                    sta     ,-x
+4A93  A782                    sta     ,-x
+4A95  C004                    subb    #4
+4A97  D710                    stb     modulate_index
+4A99  C17F                    cmpb    #127
+4A9B  261E                    bne     rect_done       ; once we reach '128', toggle value
+4A9D  8600                    lda     #0
+4A9F  C680                    ldb     #128            ; modulate samples 128 to 255
+4AA1  2014                    bra     rect_toggle
+4AA3                  rect_mod_dir_0
+4AA3  864E                    lda     #36+42
+4AA5  A780                    sta     ,x+             ; modulate two byte per 'frame'
+4AA7  A780                    sta     ,x+             ;
+4AA9  A780                    sta     ,x+             ;
+4AAB  A784                    sta     ,x
+4AAD  CB04                    addb    #4
+4AAF  D710                    stb     modulate_index
+4AB1  2608                    bne     rect_done       ; once we reach '0', toggle value
+4AB3  86FF                    lda     #-1
+4AB5  C6FF                    ldb     #255            ; modulate samples 128 to 255
+4AB7                  rect_toggle
+4AB7  D710                    stb     modulate_index
+4AB9  970F                    sta     modulate_dir
+4ABB                  rect_done
+4ABB  39                      rts
+                      
+                      ;******************* generate waveforms:
+4ABC                  generate_waveform
+                      
+                              ; generate square:
+4ABC  8E7595                  ldx     #square256
+4ABF  86E0                    lda     #224    ; 224 / 32 is a pulse wave, 128 / 128 would be a perfect square wave
+4AC1  C624                    ldb     #36     ; note: using values values maximum range -42..42
+4AC3  E780            1       stb     ,x+
+4AC5  4A                      deca
+4AC6  26FB                    bne     1B
+4AC8  8620                    lda     #32
+4ACA  C6DC                    ldb     #-36
+4ACC  E780            1       stb     ,x+
+4ACE  4A                      deca
+4ACF  26FB                    bne     1B
+                      
+                              ; generate rect:
+4AD1  8E7895                  ldx     #rect256
+4AD4  8658                    lda     #88     ; 224 / 32 is a pulse wave, 128 / 128 would be a perfect square wave
+4AD6  C6DC                    ldb     #-36    ; inverted of square for better mixing
+4AD8  E780            1       stb     ,x+
+4ADA  4A                      deca
+4ADB  26FB                    bne     1B
+4ADD  86A8                    lda     #(256-88)
+4ADF  C624                    ldb     #36
+4AE1  E780            1       stb     ,x+
+4AE3  4A                      deca
+4AE4  26FB                    bne     1B
+                      
+                              ;generate mute:
+4AE6  8E6E95                  ldx     #mute256
+4AE9  8600                    lda     #0      ; loop 256 times,
+4AEB  C600                    ldb     #0      ; fill with '0'
+4AED  E780            1       stb     ,x+
+4AEF  4A                      deca
+4AF0  26FB                    bne     1B
+                      
+                              ; generate sin
+4AF2  8E6B95                  ldx     #sin256
+4AF5  8680                    lda     #128    ; loop 128 times (we only 'mirror' half the sin)
+4AF7  E680            1       ldb     ,x+
+4AF9  50                      negb
+4AFA  E7887F                  stb     127,x
+4AFD  4A                      deca
+4AFE  26F7                    bne     1B
+                      
+                              ; generate 50% volume and 25% volume
+4B00  8E7595                  ldx     #square256
+4B03  108E7695                ldy     #square256_s1
+4B07  BD4B73                  jsr     waveform_volume_half
+4B0A  8E7695                  ldx     #square256_s1
+4B0D  108E7795                ldy     #square256_s2
+4B11  BD4B73                  jsr     waveform_volume_half
+                      
+4B14  8E6C95                  ldx     #saw256
+4B17  108E7195                ldy     #saw256_s1
+4B1B  BD4B73                  jsr     waveform_volume_half
+4B1E  8E7195                  ldx     #saw256_s1
+4B21  108E7295                ldy     #saw256_s2
+4B25  BD4B73                  jsr     waveform_volume_half
+                      
+4B28  8E6D95                  ldx     #triangle256
+4B2B  108E7395                ldy     #triangle256_s1
+4B2F  BD4B73                  jsr     waveform_volume_half
+4B32  8E7395                  ldx     #triangle256_s1
+4B35  108E7495                ldy     #triangle256_s2
+4B39  BD4B73                  jsr     waveform_volume_half
+                      
+4B3C  8E6B95                  ldx     #sin256
+4B3F  108E6F95                ldy     #sin256_s1
+4B43  BD4B73                  jsr     waveform_volume_half
+4B46  8E6F95                  ldx     #sin256_s1
+4B49  108E7095                ldy     #sin256_s2
+4B4D  BD4B73                  jsr     waveform_volume_half
+                      
+4B50  8E7895                  ldx     #rect256
+4B53  108E7995                ldy     #rect256_s1
+4B57  BD4B73                  jsr     waveform_volume_half
+4B5A  8E7995                  ldx     #rect256_s1
+4B5D  108E7A95                ldy     #rect256_s2
+4B61  BD4B73                  jsr     waveform_volume_half
+                      
+4B64  8E6395                  ldx     #waveforms_start
+4B67  A684            1       lda     ,x
+4B69  8B2A                    adda    #42
+4B6B  A780                    sta     ,x+
+4B6D  8C7B95                  cmpx    #waveforms_end
+4B70  25F5                    blo     1B
+                      
+4B72  39                      rts
+                      
+                      ;********************* waveform_volume_half
+                      ; Half the volume of a 256 sample fragment into a destination area
+                      ; input:
+                      ; 'x': points to source sample buffer
+                      ; 'y': points to destination sample buffer
+4B73                  waveform_volume_half
+4B73  4F                      clra
+4B74  E680            1       ldb     ,x+
+4B76  57                      asrb            ; divide waveform by 2
+4B77  E7A0                    stb     ,y+
+4B79  4A                      deca
+4B7A  26F8                    bne     1B
+4B7C  39                      rts
+                      
+4B7D                  waveform_lookup
+4B7D  6F15                    fdb     mute256+128             ; 0  Silence
+4B7F  6C15                    fdb     sin256+128              ; 1  Sin volume 100%
+4B81  6D15                    fdb     saw256+128              ; 2  Saw volume 100%
+4B83  6E15                    fdb     triangle256+128         ; 3  Tri volume 100%
+4B85  7615                    fdb     square256+128           ; 4  Sqr volume 100%
+4B87  7015                    fdb     sin256_s1+128           ; 5  Sin volume 50%
+4B89  7215                    fdb     saw256_s1+128           ; 6  Saw volume 50%
+4B8B  7415                    fdb     triangle256_s1+128      ; 7  Tri volume 50%
+4B8D  7715                    fdb     square256_s1+128        ; 8  Sqr volume 50%
+4B8F  7115                    fdb     sin256_s2+128           ; 9  Sin volume 25%
+4B91  7315                    fdb     saw256_s2+128           ; 10 Saw volume 25%
+4B93  7515                    fdb     triangle256_s2+128      ; 11 Tri volume 25%
+4B95  7815                    fdb     square256_s2+128        ; 12 Sqr volume 25%
+4B97  7915                    fdb     rect256+128             ; 13 Rect inverted modulated pulse
+4B99  7A15                    fdb     rect256_s1+128          ; 14 Rect 50% inverted modulated pulse
+4B9B  7B15                    fdb     rect256_s2+128          ; 15 Rect 25% inverted modulated pulse
+                      
+4B9D  6415                    fdb     noise4096+128           ; 16 Noise: waveform 13..20 will have their frequency lowered to 'match'
+4B9F  6515                    fdb     noise4096+256+128       ; 17        the C64 white noise which seems to play a lot lower (by NOISE_FREQ_DOWN)
+4BA1  6615                    fdb     noise4096+512+128       ; 18
+4BA3  6715                    fdb     noise4096+768+128       ; 19
+4BA5  6815                    fdb     noise4096+1024+128      ; 20
+4BA7  6915                    fdb     noise4096+1280+128      ; 21
+4BA9  6A15                    fdb     noise4096+1536+128      ; 22
+4BAB  6B15                    fdb     noise4096+1792+128      ; 23
+                      
+                      ;reserve room for 32 wavetable contains 15 waveform 16-bit pointers from waveform_lookup + pitch alteration, (60 bytes each)
+4BAD                  wavetable       rmb     1920
+                      
+                      ; Note table based on frequency of 80.36 Hz
+                      ; Note number corresponds to midi notes: http://www.phys.unsw.edu.au/jw/notes.html
+                      ; 0..127 notes. 'A 440 Hz' is note 69
+                      ; Special case: note 0 is 00 freq = silence
+                      ; about note 39 or 40 is 1:1 play ratio (freq=256)
+532D                  note_table
+532D  00170018001A001B001D001E002000220024          fdb 23, 24, 26, 27, 29, 30, 32, 34, 36
+533F  00260029002B002E0030003300360039003D004000440048          fdb 38, 41, 43, 46, 48, 51, 54, 57, 61, 64, 68, 72
+5357  004D00510056005B00600066006C00730079008100880090          fdb 77, 81, 86, 91, 96, 102, 108, 115, 121, 129, 136, 144
+536F  009900A200AC00B600C100CC00D800E500F3010101110121          fdb 153, 162, 172, 182, 193, 204, 216, 229, 243, 257, 273, 289
+5387  013201440158016C0182019901B101CB01E6020302210242          fdb 306, 324, 344, 364, 386, 409, 433, 459, 486, 515, 545, 578
+539F  0264028902AF02D8030303310362039503CC040604430484          fdb 612, 649, 687, 728, 771, 817, 866, 917, 972, 1030, 1091, 1156
+53B7  04C80511055E05B00607066206C4072B0798080B08860908          fdb 1224, 1297, 1374, 1456, 1543, 1634, 1732, 1835, 1944, 2059, 2182, 2312
+53CF  09910A230ABD0B600C0E0CC50D870E550F301017110C120F          fdb 2449, 2595, 2749, 2912, 3086, 3269, 3463, 3669, 3888, 4119, 4364, 4623
+53E7  13221445157A16C1181B198A1B0F1CAB1E5F202D2217241E          fdb 4898, 5189, 5498, 5825, 6171, 6538, 6927, 7339, 7775, 8237, 8727, 9246
+53FF  2644288A2AF32D8130363314361D39553CBE405B442E483C          fdb 9796, 10378, 10995, 11649, 12342, 13076, 13853, 14677, 15550, 16475, 17454, 18492
+5417  4C88511555E75B03606C66286C3B72AB797C80B5885C          fdb 19592, 20757, 21991, 23299, 24684, 26152, 27707, 29355, 31100, 32949, 34908
+                      
+                      ; mixing table:
+                      ; this is a 256 entries table for logarithmic sound output:
+                      ; input: a 8-bit signed value (-128..+127)
+                      ; output: clamp 6-bit DAC adjusted value (0..63)<<2 (0..252)
+                      ;mixtable
+                      ;       ; Volume * 0.25 + hard clip ramp
+                      ;       fcb 0,0,0,0,0,0,4,4,4,4,8,8,8,8,12,12,12,12,16,16,16,16,20,20,20,20,24,24,24,24,28,28
+                      ;       fcb 28,28,32,32,32,32,36,36,36,36,40,40,40,40,44,44,44,44,48,48,48,48,52,52,52,52,56,56,56,56,60,60
+                      ;       fcb 60,60,64,64,64,64,68,68,68,68,72,72,72,72,76,76,76,76,80,80,80,80,84,84,84,84,88,88,88,88,92,92
+                      ;       fcb 92,92,96,96,96,96,100,100,100,100,104,104,104,104,108,108,108,108,112,112,112,112,116,116,116,116,120,120,120,120,124,124
+                      ;       fcb 124,124,128,128,128,128,132,132,132,132,136,136,136,136,140,140,140,140,144,144,144,144,148,148,148,148,152,152,152,152,156,156
+                      ;       fcb 156,156,160,160,160,160,164,164,164,164,168,168,168,168,172,172,172,172,176,176,176,176,180,180,180,180,184,184,184,184,188,188
+                      ;       fcb 188,188,192,192,192,192,196,196,196,196,200,200,200,200,204,204,204,204,208,208,208,208,212,212,212,212,216,216,216,216,220,220
+                      ;       fcb 220,220,224,224,224,224,228,228,228,228,232,232,232,232,236,236,236,236,240,240,240,240,244,244,244,244,248,248,248,248,252,252
+                      
+                              ; '1' = 3 frame, a pattern is 32 notes * 3 = 96 frames per pattern
+                              ; (double pattern are 192 frames long)
+                              ; Total Commando song: 3:56.12 (i.e.: 11806 frames / 96 = 123 patterns)
+                      
+542D                  song_voice1
+                              ; pattern list for this track:
+542D  01                      fcb     01      ; init instrument: don't SKIP THIS PATTERN!
+                      
+542E  0505                    fcb     05,05   ; frame 1,193
+5430  0505                    fcb     05,05   ; frame 385,577
+5432  0809                    fcb     08,09   ; frame 769,961
+5434  0A0B                    fcb     10,11   ; frame 1153,1345
+5436  0809                    fcb     08,09   ; frame 1537,1729 (repeat)
+5438  0A0B                    fcb     10,11   ; frame 1921,2113
+543A  1112                    fcb     17,18   ; frame 2305,2497
+543C  1314                    fcb     19,20   ; frame 2689,2881
+543E  1314                    fcb     19,20   ; frame 3073,3265 (repeat)
+5440  1515                    fcb     21,21   ; frame 3457,3649
+5442  1617                    fcb     22,23   ; frame 3841,4033
+5444  1617                    fcb     22,23   ; frame 4225,4417 (repeat)
+5446  1818                    fcb     24,24   ; frame 4609,4801
+5448  191A                    fcb     25,26   ; frame 4993,5185
+544A  1B1B1B1B                fcb     27,27,27,27     ; frame 5377,5569
+544E  1B1B1B1B                fcb     27,27,27,27     ; frame 5761,5953
+5452  1515                    fcb     21,21   ; frame 6145,6337
+5454  1B1B1B1B                fcb     27,27,27,27     ; frame 6529,6721
+5458  151B1B                  fcb     21,27,27        ; frame 6913,7105
+545B  1C1D                    fcb     28,29   ; frame 7297,7489
+545D  1E1F                    fcb     30,31   ; frame 7681,7873
+545F  2021                    fcb     32,33   ; frame 8065,8257
+5461  2223                    fcb     34,35   ; frame 8449,8641
+5463  2424                    fcb     36,36   ; frame 8833,9025
+5465  2525                    fcb     37,37   ; frame 9217,9409
+5467  2626                    fcb     38,38   ; frame 9601,9793
+5469  1617                    fcb     22,23   ; frame 9985,10177
+546B  1B1B27                  fcb     27,27,39        ; frame 10369,10561
+546E  151B                    fcb     21,27   ; frame 10657,10849
+5470  181B                    fcb     24,27   ; frame 10945,11137
+5472  191A                    fcb     25,26   ; frame 11233,11425
+5474  1B27                    fcb     27,39   ; frame 11617,11713
+                      
+5476  FF                      fcb     255     ; reset/restart song indefinitely
+5477  00                      fcb     00
+                      
+5478                  song_voice2
+                              ; pattern list for this track:
+5478  0607                    fcb     06,07   ; frame 1,193
+547A  0607                    fcb     06,07   ; frame 385,577
+547C  0607                    fcb     06,07   ; frame 769,961
+547E  0F10                    fcb     15,16   ; frame 1153,1345
+5480  0607                    fcb     06,07   ; frame 1537,1729 (repeat)
+5482  0F10                    fcb     15,16   ; frame 1921,2113
+5484  0607                    fcb     06,07   ; frame 2305,2497
+5486  0607                    fcb     06,07   ; frame 2689,2881
+5488  0607                    fcb     06,07   ; frame 3073,3265
+548A  2D2D                    fcb     45,45   ; frame 3457,3649
+548C  2E2E                    fcb     46,46   ; frame 3841,4033
+548E  2E2E                    fcb     46,46   ; frame 4225,4417
+5490  2F2F                    fcb     47,47   ; frame 4609,4801
+5492  3030                    fcb     48,48   ; frame 4993,5185
+5494  31313131                fcb     49,49,49,49     ; frame 5377,5569
+5498  31313131                fcb     49,49,49,49     ; frame 5761,5953
+549C  2D2D                    fcb     45,45   ; frame 6145,6337
+549E  31313131                fcb     49,49,49,49     ; frame 6529,6721
+54A2  2D3131                  fcb     45,49,49        ; frame 6913,7105
+54A5  2D2D                    fcb     45,45   ; frame 7297,7489
+54A7  2D2D                    fcb     45,45   ; frame 7681,7873
+54A9  2D2D                    fcb     45,45   ; frame 8065,8257
+54AB  2D2D                    fcb     45,45   ; frame 8449,8641
+54AD  2D2D                    fcb     45,45   ; frame 8833,9025
+54AF  2E2E                    fcb     46,46   ; frame 9217,9409
+54B1  2E2E                    fcb     46,46   ; frame 9601,9793
+54B3  2E2E                    fcb     46,46   ; frame 9985,10177
+54B5  313132                  fcb     49,49,50        ; frame 10369,10561
+54B8  2D31                    fcb     45,49   ; frame 10657,10849
+54BA  2F31                    fcb     47,49   ; frame 10945,11137
+54BC  3030                    fcb     48,48   ; frame 11233,11425
+54BE  3132                    fcb     49,50   ; frame 11617,11713
+                      
+54C0  00                      fcb     00
+                      
+                      
+54C1                  song_voice3
+                              ; pattern list for this track:
+54C1  02020304                fcb     02,02,03,04     ; frame 1,97,193,289
+54C5  02020304                fcb     02,02,03,04     ; frame 385,481,577,673
+54C9  02020304                fcb     02,02,03,04     ; frame 769,865,961,1057
+54CD  0C0C0D0E                fcb     12,12,13,14     ; frame 1153,1249,1345,1441
+54D1  02020304                fcb     02,02,03,04     ; frame 1537,1729 (repeat)
+54D5  0C0C0D0E                fcb     12,12,13,14     ; frame 1921,2113
+54D9  02282902                fcb     02,40,41,02     ; frame 2305,2401,2497,2593
+54DD  02020304                fcb     02,02,03,04     ; frame 2689,2881
+54E1  02020304                fcb     02,02,03,04     ; frame 3073,3265
+54E5  02022828                fcb     02,02,40,40     ; frame 3457,3649
+54E9  2A2A0D0D                fcb     42,42,13,13     ; frame 3841,4033
+54ED  2A2A0D0D                fcb     42,42,13,13     ; frame 4225,4417
+54F1  28282828                fcb     40,40,40,40     ; frame 4609,4801
+54F5  29292929                fcb     41,41,41,41     ; frame 4993,5185
+54F9  2B2B2B2B                fcb     43,43,43,43     ; frame 5377,5569
+54FD  2B2B2B2B                fcb     43,43,43,43     ; frame 5761,5953
+5501  02022828                fcb     02,02,40,40     ; frame 6145,6337
+5505  2B2B2B2B                fcb     43,43,43,43     ; frame 6529,6721
+5509  02282B2B                fcb     02,40,43,43     ; frame 6913,7105
+550D  02022828                fcb     02,02,40,40     ; frame 7297,7489
+5511  02022828                fcb     02,02,40,40     ; frame 7681,7873
+5515  02022828                fcb     02,02,40,40     ; frame 8065,8257
+5519  02022828                fcb     02,02,40,40     ; frame 8449,8641
+551D  02022828                fcb     02,02,40,40     ; frame 8833,9025
+5521  2A2A0D0D                fcb     42,42,13,13     ; frame 9217,9409
+5525  2A2A0D0D                fcb     42,42,13,13     ; frame 9601,9793
+5529  2A2A0D0D                fcb     42,42,13,13     ; frame 9985,10177
+552D  2B2B2C                  fcb     43,43,44        ; frame 10369,10561
+5530  02282B                  fcb     02,40,43        ; frame 10657,10849
+5533  28282B                  fcb     40,40,43        ; frame 10945,11137
+5536  29292929                fcb     41,41,41,41     ; frame 11233,11425
+553A  2B2C                    fcb     43,44           ; frame 11617,11713
+553C  00                      fcb     00
+                      
+553D                  pattern_ptr
+553D  55A1                    fdb     pattern_01
+553F  57C2                    fdb     pattern_02
+5541  57ED                    fdb     pattern_03
+5543  5818                    fdb     pattern_04
+5545  5843                    fdb     pattern_05
+5547  588E                    fdb     pattern_06
+5549  58D7                    fdb     pattern_07
+554B  5914                    fdb     pattern_08
+554D  5953                    fdb     pattern_09
+554F  5980                    fdb     pattern_10
+5551  59BF                    fdb     pattern_11
+5553  59F4                    fdb     pattern_12
+5555  5A1F                    fdb     pattern_13
+5557  5A4A                    fdb     pattern_14
+5559  5A75                    fdb     pattern_15
+555B  5ABE                    fdb     pattern_16
+555D  5AFB                    fdb     pattern_17
+555F  5B4C                    fdb     pattern_18
+5561  5B91                    fdb     pattern_19
+5563  5BE8                    fdb     pattern_20
+5565  5C3B                    fdb     pattern_21
+5567  5C8E                    fdb     pattern_22
+5569  5CE5                    fdb     pattern_23
+556B  5D28                    fdb     pattern_24
+556D  5D6D                    fdb     pattern_25
+556F  5DB2                    fdb     pattern_26
+5571  5DF9                    fdb     pattern_27
+5573  5E38                    fdb     pattern_28
+5575  5E67                    fdb     pattern_29
+5577  5E96                    fdb     pattern_30
+5579  5ECD                    fdb     pattern_31
+557B  5F00                    fdb     pattern_32
+557D  5F4F                    fdb     pattern_33
+557F  5FA2                    fdb     pattern_34
+5581  5FDD                    fdb     pattern_35
+5583  6014                    fdb     pattern_36
+5585  6077                    fdb     pattern_37
+5587  60DA                    fdb     pattern_38
+5589  613D                    fdb     pattern_39
+558B  614E                    fdb     pattern_40
+558D  6179                    fdb     pattern_41
+558F  61A4                    fdb     pattern_42
+5591  61CF                    fdb     pattern_43
+5593  6208                    fdb     pattern_44
+5595  6219                    fdb     pattern_45
+5597  6264                    fdb     pattern_46
+5599  62AF                    fdb     pattern_47
+559B  62FA                    fdb     pattern_48
+559D  6345                    fdb     pattern_49
+559F  6384                    fdb     pattern_50
+                      
+                      ; this is our special init instrument pattern: no note played, total duration: 0
+55A1                  pattern_01
+                              ; a wavetable is defined using 5 group of 3 'wave / pitch alteration'
+                              ; first group (0..2): attack portion
+                              ; second group (3..11): sustain portion (loops around if sound is long)
+                              ; third group (12..14): release portion, always played at the end
+                              ;   (unless the sound duration is 1: in this case only the 'attack' portion plays)
+                      
+55A1  0200000000000000000000000000000000000000000000000000000000000000          fcb     02,00,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; define wavetable 00 : complete silence
+55C1  0201040004000400040004000400040004000400040004000400040008000C00          fcb     02,01,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,4,0,8,0,12,0 ; define wavetable 01 : voice 3 bass square
+55E1  020210001100120C0A00140C15000A00140C1500000000000000150016001700          fcb     02,02,16,0,17,0,18,12,10,0,20,12,21,0,10,0,20,12,21,0,0,0,0,0,0,0,21,0,22,0,23,0 ; define wavetable 02 : snare drum
+5601  0203010001000100010001000100010001000100010001000100010001000100          fcb     02,03,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0 ; define wave 3: plain sin (unused)
+5621  0204020002000200020002000200020002000200020002000200020002000200          fcb     02,04,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0,2,0 ; define wave 4: plain sawtooth (unused)
+5641  0205030003000300030003000300030003000300030003000300030003000300          fcb     02,05,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0,3,0 ; define wave 5: plain triangle (unused)
+                      
+5661  02060300100011C9030003BA030003BA030003BA00000000000007000BBA0000          fcb     02,06,3,0,16,0,17,-55,3,0,3,-70,3,0,3,-70,3,0,3,-70,0,0,0,0,0,0,7,0,11,-70,0,0 ; define wave 6: voice 1 first commando note
+5681  020703001000110C0300030C0300030C0300030C00000000000007000B0C0000          fcb     02,07,3,0,16,0,17,12,3,0,3,12,3,0,3,12,3,0,3,12,0,0,0,0,0,0,7,0,11,12,0,0 ; define wave 7: voice 1 second sound
+56A1  020804001000110C0400040C0400040C0400040C0400040C0400040C08000C0C          fcb     02,08,4,0,16,0,17,12,4,0,4,12,4,0,4,12,4,0,4,12,4,0,4,12,4,0,4,12,8,0,12,12 ; define wave 8: voice 2 main instrument
+56C1  02090300100011D7030003D7030003D7030003D700000000000007000BD70000          fcb     02,09,3,0,16,0,17,-41,3,0,3,-41,3,0,3,-41,3,0,3,-41,0,0,0,0,0,0,7,0,11,-41,0,0 ; define wave 9:
+                      
+56E1  020A040013001500000000000000000000000000000000000000000000000000          fcb     02,10,4,0,19,0,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ; voice 2 'little tic tic tic'
+                      
+5701  020B0F000E000D000D000D000D000D000D000D000D000D000D000D000E000F00          fcb     02,11,15,0,14,0,13,0,13,0,13,0,13,0,13,0,13,0,13,0,13,0,13,0,13,0,13,0,14,0,15,0 ; voice 1 'song main instrument'
+                      
+5721  020C04001000110004FF04FD04FC04FA04F804F604F404F104EE04EA04E404DD          fcb     02,12,4,0,16,0,17,0,4,-1,4,-3,4,-4,4,-6,4,-8,4,-10,4,-12,4,-15,4,-18,4,-22,4,-28,4,-35 ; voice 1 'tom drum'
+5741  020D040010001100040004FF04FE00000000000000000000000004FD04FB04FA          fcb     02,13,4,0,16,0,17,0,4,0,4,-1,4,-2,0,0,0,0,0,0,0,0,0,0,0,0,4,-3,4,-5,4,-6 ; voice 1 'mini tom drum'
+5761  020E0400100011EC040004CD040004CD040004CD040004CD040004CD040004CD          fcb     02,14,4,0,16,0,17,-20,4,0,4,-51,4,0,4,-51,4,0,4,-51,4,0,4,-51,4,0,4,-51,4,0,4,-51 ; voice 1 'end song tom drum'
+                      
+5781  020F0300100011EC030004CD030004CD030004CD030004CD030004CD030004CD          fcb     02,15,3,0,16,0,17,-20,3,0,4,-51,3,0,4,-51,3,0,4,-51,3,0,4,-51,3,0,4,-51,3,0,4,-51 ; voice 2 special drum 1
+57A1  02100300100011000300030C0300030C0300030C0300030C0300030C0300030C          fcb     02,16,3,0,16,0,17,0,3,0,3,12,3,0,3,12,3,0,3,12,3,0,3,12,3,0,3,12,3,0,3,12 ; voice 2 special drum 2
+                      
+                              ; test stuff
+                              ;fcb    06,11
+                              ;fcb    03,60,255,1
+                      
+57C1  00                      fcb     00      ; End of pattern
+                      
+57C2                  pattern_02
+                              ; Voice 3: 'A-1' measure
+57C2  0601                    fcb     06,01   ; activate wavetable
+57C4  03210501                fcb     03,33,5,1 ; play notes..
+57C8  032D0101                fcb     03,45,1,1
+                      
+57CC  0602                    fcb     06,02   ; activate wavetable
+57CE  033A0301                fcb     03,58,3,1
+                      
+57D2  0601                    fcb     06,01   ; activate wavetable
+57D4  03210301                fcb     03,33,3,1 ; 4 -> 3 + 1 pause
+57D8  03210701                fcb     03,33,7,1
+                      
+57DC  0602                    fcb     06,02   ; activate wavetable
+57DE  033A0301                fcb     03,58,3,1
+                      
+57E2  0601                    fcb     06,01   ; activate wavetable
+57E4  032B0101                fcb     03,43,1,1
+57E8  032D0101                fcb     03,45,1,1
+57EC  00                      fcb     00      ; End of pattern
+                      
+57ED                  pattern_03
+                              ; Voice 3: 'A#1' measure
+57ED  0601                    fcb     06,01   ; activate wavetable
+57EF  03220501                fcb     03,34,5,1 ; play notes..
+57F3  032E0101                fcb     03,46,1,1
+                      
+57F7  0602                    fcb     06,02   ; activate wavetable
+57F9  033A0301                fcb     03,58,3,1
+                      
+57FD  0601                    fcb     06,01   ; activate wavetable
+57FF  03220301                fcb     03,34,3,1
+5803  03220701                fcb     03,34,7,1
+                      
+5807  0602                    fcb     06,02   ; activate wavetable
+5809  033A0301                fcb     03,58,3,1
+                      
+580D  0601                    fcb     06,01   ; activate wavetable
+580F  032D0101                fcb     03,45,1,1
+5813  032E0101                fcb     03,46,1,1
+5817  00                      fcb     00      ; End of pattern
+                      
+5818                  pattern_04
+                              ; Voice 3: 'E-1' measure
+5818  0601                    fcb     06,01   ; activate wavetable
+581A  031C0501                fcb     03,28,5,1 ; play notes..
+581E  03280101                fcb     03,40,1,1
+                      
+5822  0602                    fcb     06,02   ; activate wavetable
+5824  033A0301                fcb     03,58,3,1
+                      
+5828  0601                    fcb     06,01   ; activate wavetable
+582A  031C0301                fcb     03,28,3,1
+582E  031C0701                fcb     03,28,7,1
+                      
+5832  0602                    fcb     06,02   ; activate wavetable
+5834  033A0301                fcb     03,58,3,1
+                      
+5838  0601                    fcb     06,01   ; activate wavetable
+583A  03260101                fcb     03,38,1,1
+583E  03280101                fcb     03,40,1,1
+5842  00                      fcb     00      ; End of pattern
+                      
+5843                  pattern_05
+                              ; Voice 1: first pattern (double)
+5843  0606                    fcb     06,06
+5845  03640301                fcb     03,100,3,1
+5849  0607                    fcb     06,07
+584B  035D0301                fcb     03,93,3,1
+                      
+584F  0608                    fcb     06,08
+5851  03450301                fcb     03,69,3,1
+5855  03450301                fcb     03,69,3,1
+5859  03450501                fcb     03,69,5,1
+585D  03450501                fcb     03,69,5,1
+5861  03430501                fcb     03,67,5,1
+5865  03450101                fcb     03,69,1,1
+5869  03450301                fcb     03,69,3,1
+586D  03450301                fcb     03,69,3,1
+5871  03430301                fcb     03,67,3,1
+5875  03450101                fcb     03,69,1,1
+5879  03430101                fcb     03,67,1,1
+587D  03450301                fcb     03,69,3,1
+                      
+5881  0609                    fcb     06,09
+5883  03640301                fcb     03,100,3,1
+                      
+5887  0607                    fcb     06,07
+5889  035D0301                fcb     03,93,3,1
+588D  00                      fcb     00      ; End of pattern
+                      
+588E                  pattern_06
+                              ; Voice 2: first pattern (double)
+588E  060A                    fcb     06,10
+5890  03470101                fcb     03,71,1,1
+5894  03530101                fcb     03,83,1,1
+5898  03530101                fcb     03,83,1,1
+589C  03530101                fcb     03,83,1,1
+                      
+58A0  0608                    fcb     06,08
+58A2  03400301                fcb     03,64,3,1
+58A6  03400301                fcb     03,64,3,1
+58AA  03410501                fcb     03,65,5,1
+58AE  03400501                fcb     03,64,5,1
+58B2  033E0301                fcb     03,62,3,1
+                      
+58B6  060A                    fcb     06,10
+58B8  03530101                fcb     03,83,1,1
+58BC  03530101                fcb     03,83,1,1
+58C0  03530101                fcb     03,83,1,1
+58C4  03530101                fcb     03,83,1,1
+                      
+58C8  0608                    fcb     06,08
+58CA  03400301                fcb     03,64,3,1
+58CE  03400301                fcb     03,64,3,1
+58D2  03400709                fcb     03,64,7,9
+58D6  00                      fcb     00      ; End of pattern
+                      
+58D7                  pattern_07
+                              ; Voice 2: second pattern (double)
+58D7  060A                    fcb     06,10
+58D9  03530101                fcb     03,83,1,1
+58DD  03530101                fcb     03,83,1,1
+58E1  03530101                fcb     03,83,1,1
+58E5  03530101                fcb     03,83,1,1
+                      
+58E9  0608                    fcb     06,08
+58EB  03400301                fcb     03,64,3,1
+58EF  03400301                fcb     03,64,3,1
+58F3  03410501                fcb     03,65,5,1
+58F7  03400501                fcb     03,64,5,1
+58FB  033E0303                fcb     03,62,3,3
+                      
+58FF  03400101                fcb     03,64,1,1
+5903  03400301                fcb     03,64,3,1
+5907  03400301                fcb     03,64,3,1
+590B  03400301                fcb     03,64,3,1
+590F  03400709                fcb     03,64,7,9
+5913  00                      fcb     00      ; End of pattern
+                      
+5914                  pattern_08
+                              ; Voice 1: refrain music first pattern normal in A-4 (69) (double)
+5914  0602                    fcb     06,02
+5916  033E0101                fcb     03,62,1,1
+                      
+591A  060B                    fcb     06,11
+591C  03450101                fcb     03,69,1,1
+5920  03450301                fcb     03,69,3,1
+5924  03450301                fcb     03,69,3,1
+5928  03450301                fcb     03,69,3,1
+592C  03450701                fcb     03,69,7,1
+5930  03450501                fcb     03,69,5,1
+5934  03450301                fcb     03,69,3,1
+5938  034C0101                fcb     03,76,1,1
+593C  034C0301                fcb     03,76,3,1
+5940  034C0301                fcb     03,76,3,1
+5944  034C0301                fcb     03,76,3,1
+5948  034C0701                fcb     03,76,7,1
+594C  060C                    fcb     06,12
+594E  03380404                fcb     03,56,4,4
+5952  00                      fcb     00      ; End of pattern
+                      
+5953                  pattern_09
+                              ; Voice 1: refrain music second pattern normal (double)
+5953  060B                    fcb     06,11
+5955  034D0701                fcb     03,77,7,1
+5959  034C0701                fcb     03,76,7,1
+595D  034D0701                fcb     03,77,7,1
+5961  034C0703                fcb     03,76,7,3
+                      
+5965  03470101                fcb     03,71,1,1
+5969  03470301                fcb     03,71,3,1
+596D  03470301                fcb     03,71,3,1
+5971  03470301                fcb     03,71,3,1
+5975  03470701                fcb     03,71,7,1
+                      
+5979  060C                    fcb     06,12
+597B  03380404                fcb     03,56,4,4
+597F  00                      fcb     00      ; End of pattern
+                      
+5980                  pattern_10
+                              ; Voice 1: refrain music first pattern raised to C-5 (72) (double)
+5980  0602                    fcb     06,02
+5982  033E0101                fcb     03,62,1,1
+                      
+5986  060B                    fcb     06,11
+5988  03480101                fcb     03,72,1,1
+598C  03480301                fcb     03,72,3,1
+5990  03480301                fcb     03,72,3,1
+5994  03480301                fcb     03,72,3,1
+5998  03480701                fcb     03,72,7,1
+599C  03480501                fcb     03,72,5,1
+59A0  03480301                fcb     03,72,3,1
+59A4  034F0101                fcb     03,79,1,1
+59A8  034F0301                fcb     03,79,3,1
+59AC  034F0301                fcb     03,79,3,1
+59B0  034F0301                fcb     03,79,3,1
+59B4  034F0701                fcb     03,79,7,1
+59B8  060C                    fcb     06,12
+59BA  03380404                fcb     03,56,4,4
+59BE  00                      fcb     00      ; End of pattern
+                      
+59BF                  pattern_11
+                              ; Voice 1: refrain music second pattern raised (double)
+59BF  060B                    fcb     06,11
+59C1  03500701                fcb     03,80,7,1
+59C5  034F0701                fcb     03,79,7,1
+59C9  03500701                fcb     03,80,7,1
+59CD  034F0703                fcb     03,79,7,3
+                      
+59D1  034A0101                fcb     03,74,1,1
+59D5  034A0301                fcb     03,74,3,1
+59D9  034A0301                fcb     03,74,3,1
+59DD  034A0301                fcb     03,74,3,1
+59E1  034A0701                fcb     03,74,7,1
+                      
+59E5  060D                    fcb     06,13
+59E7  033B0301                fcb     03,59,3,1
+59EB  03380101                fcb     03,56,1,1
+59EF  03380101                fcb     03,56,1,1
+59F3  00                      fcb     00      ; End of pattern
+                      
+59F4                  pattern_12
+                              ; Voice 3: raised C-2 to measure
+59F4  0601                    fcb     06,01
+59F6  03240501                fcb     03,36,5,1
+59FA  03300101                fcb     03,48,1,1
+                      
+59FE  0602                    fcb     06,02
+5A00  033A0301                fcb     03,58,3,1
+                      
+5A04  0601                    fcb     06,01
+5A06  03240301                fcb     03,36,3,1
+5A0A  03240701                fcb     03,36,7,1
+                      
+5A0E  0602                    fcb     06,02
+5A10  033A0301                fcb     03,58,3,1
+                      
+5A14  0601                    fcb     06,01
+5A16  032E0101                fcb     03,46,1,1
+5A1A  03300101                fcb     03,48,1,1
+5A1E  00                      fcb     00      ; End of pattern
+                      
+5A1F                  pattern_13
+                              ; Voice 3: raised 'C#2' measure
+5A1F  0601                    fcb     06,01
+5A21  03250501                fcb     03,37,5,1
+5A25  03310101                fcb     03,49,1,1
+                      
+5A29  0602                    fcb     06,02
+5A2B  033A0301                fcb     03,58,3,1
+                      
+5A2F  0601                    fcb     06,01
+5A31  03250301                fcb     03,37,3,1
+5A35  03250701                fcb     03,37,7,1
+                      
+5A39  0602                    fcb     06,02
+5A3B  033A0301                fcb     03,58,3,1
+                      
+5A3F  0601                    fcb     06,01
+5A41  03300101                fcb     03,48,1,1
+5A45  03310101                fcb     03,49,1,1
+5A49  00                      fcb     00      ; End of pattern
+                      
+5A4A                  pattern_14
+                              ; Voice 3: 'G-1' measure
+5A4A  0601                    fcb     06,01
+5A4C  031F0501                fcb     03,31,5,1
+5A50  032B0101                fcb     03,43,1,1
+                      
+5A54  0602                    fcb     06,02
+5A56  033A0301                fcb     03,58,3,1
+                      
+5A5A  0601                    fcb     06,01
+5A5C  031F0301                fcb     03,31,3,1
+5A60  031F0701                fcb     03,31,7,1
+                      
+5A64  0602                    fcb     06,02
+5A66  033A0301                fcb     03,58,3,1
+                      
+5A6A  0601                    fcb     06,01
+5A6C  03280101                fcb     03,40,1,1
+5A70  03280101                fcb     03,40,1,1
+5A74  00                      fcb     00      ; End of pattern
+                      
+5A75                  pattern_15
+                              ; Voice 2: first pattern raised +3 (double)
+5A75  060A                    fcb     06,10
+5A77  03530101                fcb     03,83,1,1
+5A7B  03530101                fcb     03,83,1,1
+5A7F  03530101                fcb     03,83,1,1
+5A83  03530101                fcb     03,83,1,1
+                      
+5A87  0608                    fcb     06,08
+5A89  03430301                fcb     03,67,3,1
+5A8D  03430301                fcb     03,67,3,1
+5A91  03440501                fcb     03,68,5,1
+5A95  03430501                fcb     03,67,5,1
+5A99  03410301                fcb     03,65,3,1
+                      
+5A9D  060A                    fcb     06,10
+5A9F  03530101                fcb     03,83,1,1
+5AA3  03530101                fcb     03,83,1,1
+5AA7  03530101                fcb     03,83,1,1
+5AAB  03530101                fcb     03,83,1,1
+                      
+5AAF  0608                    fcb     06,08
+5AB1  03430301                fcb     03,67,3,1
+5AB5  03430301                fcb     03,67,3,1
+5AB9  03430709                fcb     03,67,7,9
+5ABD  00                      fcb     00      ; End of pattern
+                      
+5ABE                  pattern_16
+                              ; Voice 2: second pattern raised +3 (double)
+5ABE  060A                    fcb     06,10
+5AC0  03530101                fcb     03,83,1,1
+5AC4  03530101                fcb     03,83,1,1
+5AC8  03530101                fcb     03,83,1,1
+5ACC  03530101                fcb     03,83,1,1
+                      
+5AD0  0608                    fcb     06,08
+5AD2  03430301                fcb     03,67,3,1
+5AD6  03430301                fcb     03,67,3,1
+5ADA  03440501                fcb     03,68,5,1
+5ADE  03430501                fcb     03,67,5,1
+5AE2  03410303                fcb     03,65,3,3
+                      
+5AE6  03430101                fcb     03,67,1,1
+5AEA  03430301                fcb     03,67,3,1
+5AEE  03430301                fcb     03,67,3,1
+5AF2  03430301                fcb     03,67,3,1
+5AF6  03430709                fcb     03,67,7,9
+5AFA  00                      fcb     00      ; End of pattern
+                      
+5AFB                  pattern_17
+                              ; Voice 1: frame 2305
+5AFB  0602                    fcb     06,02   ; snare drum
+5AFD  033E0301                fcb     03,62,3,1
+5B01  033E0301                fcb     03,62,3,1
+                      
+5B05  060B                    fcb     06,11   ; main instr.
+5B07  03450301                fcb     03,69,3,1
+5B0B  03450301                fcb     03,69,3,1
+5B0F  03450101                fcb     03,69,1,1
+5B13  03450101                fcb     03,69,1,1
+5B17  03450301                fcb     03,69,3,1
+5B1B  03470301                fcb     03,71,3,1
+5B1F  03480301                fcb     03,72,3,1
+5B23  034A0101                fcb     03,74,1,1
+5B27  034A0101                fcb     03,74,1,1
+5B2B  034A0301                fcb     03,74,3,1
+5B2F  034A0301                fcb     03,74,3,1
+5B33  034A0301                fcb     03,74,3,1
+5B37  034A0701                fcb     03,74,7,1
+                      
+5B3B  060C                    fcb     06,12   ; voice 1 end tom drum
+5B3D  03380301                fcb     03,56,3,1
+                      
+5B41  060B                    fcb     06,11   ; main instr.
+5B43  034A0101                fcb     03,74,1,1
+5B47  034C0101                fcb     03,76,1,1
+                      
+5B4B  00                      fcb     00      ; End of pattern
+                      
+5B4C                  pattern_18
+                              ; Voice 1: frame 2497
+5B4C  060B                    fcb     06,11   ; main instr.
+5B4E  034D0101                fcb     03,77,1,1
+5B52  034D0101                fcb     03,77,1,1
+5B56  034C0301                fcb     03,76,3,1
+5B5A  034A0301                fcb     03,74,3,1
+5B5E  03480301                fcb     03,72,3,1
+5B62  03470301                fcb     03,71,3,1
+5B66  03450301                fcb     03,69,3,1
+5B6A  03440701                fcb     03,68,7,1
+                      
+5B6E  0602                    fcb     06,02   ; snare drum
+5B70  033E0101                fcb     03,62,1,1
+                      
+5B74  060B                    fcb     06,11   ; main instr.
+5B76  03450101                fcb     03,69,1,1
+5B7A  03450301                fcb     03,69,3,1
+5B7E  03450301                fcb     03,69,3,1
+5B82  03470301                fcb     03,71,3,1
+5B86  03450701                fcb     03,69,7,1
+                      
+5B8A  060C                    fcb     06,12   ; voice 1 end tom drum
+5B8C  03380404                fcb     03,56,4,4
+                      
+5B90  00                      fcb     00      ; End of pattern
+                      
+5B91                  pattern_19
+                              ; Voice 1: frame 2689
+5B91  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+5B93  03480101                fcb     03,72,1,1
+5B97  03470301                fcb     03,71,3,1
+5B9B  03460101                fcb     03,70,1,1
+5B9F  03450301                fcb     03,69,3,1
+                      
+5BA3  03480101                fcb     03,72,1,1
+5BA7  03470301                fcb     03,71,3,1
+5BAB  03460101                fcb     03,70,1,1
+5BAF  03450301                fcb     03,69,3,1
+                      
+5BB3  03480101                fcb     03,72,1,1
+5BB7  03470301                fcb     03,71,3,1
+5BBB  03460101                fcb     03,70,1,1
+5BBF  03450301                fcb     03,69,3,1
+                      
+5BC3  03480101                fcb     03,72,1,1
+5BC7  03470301                fcb     03,71,3,1
+5BCB  03460101                fcb     03,70,1,1
+5BCF  03450301                fcb     03,69,3,1
+                      
+5BD3  03480101                fcb     03,72,1,1
+5BD7  03470301                fcb     03,71,3,1
+5BDB  03450101                fcb     03,69,1,1
+5BDF  034D0301                fcb     03,77,3,1
+5BE3  034C0301                fcb     03,76,3,1
+                      
+5BE7  00                      fcb     00      ; End of pattern
+                      
+5BE8                  pattern_20
+                              ; Voice 1: frame 2881
+5BE8  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+5BEA  034D0101                fcb     03,77,1,1
+5BEE  034C0301                fcb     03,76,3,1
+5BF2  034B0101                fcb     03,75,1,1
+5BF6  034A0301                fcb     03,74,3,1
+                      
+5BFA  034D0101                fcb     03,77,1,1
+5BFE  034C0301                fcb     03,76,3,1
+5C02  034B0101                fcb     03,75,1,1
+5C06  034A0301                fcb     03,74,3,1
+                      
+5C0A  034D0301                fcb     03,77,3,1
+5C0E  034C0301                fcb     03,76,3,1
+5C12  03470101                fcb     03,71,1,1
+5C16  03460301                fcb     03,70,3,1
+5C1A  03450101                fcb     03,69,1,1
+5C1E  03440301                fcb     03,68,3,1
+5C22  03470101                fcb     03,71,1,1
+5C26  03460301                fcb     03,70,3,1
+5C2A  03450101                fcb     03,69,1,1
+5C2E  03440301                fcb     03,68,3,1
+5C32  03480301                fcb     03,72,3,1
+5C36  03470301                fcb     03,71,3,1
+                      
+5C3A  00                      fcb     00      ; End of pattern
+                      
+5C3B                  pattern_21
+                              ; Voice 1: frame 3457
+5C3B  060B                    fcb     06,11   ; main instr
+5C3D  03480101                fcb     03,72,1,1
+5C41  03470301                fcb     03,71,3,1
+5C45  03460101                fcb     03,70,1,1
+5C49  03450301                fcb     03,69,3,1
+5C4D  03480101                fcb     03,72,1,1
+5C51  03470301                fcb     03,71,3,1
+5C55  03460101                fcb     03,70,1,1
+5C59  03450301                fcb     03,69,3,1
+5C5D  03480301                fcb     03,72,3,1
+5C61  034A0301                fcb     03,74,3,1
+5C65  03480101                fcb     03,72,1,1
+5C69  03470301                fcb     03,71,3,1
+5C6D  03460101                fcb     03,70,1,1
+5C71  03450301                fcb     03,69,3,1
+5C75  03480101                fcb     03,72,1,1
+5C79  03470301                fcb     03,71,3,1
+5C7D  03460101                fcb     03,70,1,1
+5C81  03450301                fcb     03,69,3,1
+5C85  03480301                fcb     03,72,3,1
+5C89  034A0301                fcb     03,74,3,1
+                      
+5C8D  00                      fcb     00      ; End of pattern
+                      
+5C8E                  pattern_22
+                              ; Voice 1: frame 3841
+5C8E  060B                    fcb     06,11   ; main instr
+5C90  034E0B01                fcb     03,78,11,1
+                      
+                              ; test pitch alteration
+                              ;fcb    03,78,11,1      ; this note is slurred down
+5C94  0800FFEE                fdb     $0800,-(cycle_ratio*272/12)     ; -272 total pitch bend during 12 frames
+5C98  034E0400                fcb     03,78,4,0
+5C9C  08000000                fdb     $0800,0         ; stop pitch bend
+5CA0  034E0701                fcb     03,78,7,1
+5CA4  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5CA8  03490301                fcb     03,73,3,1
+5CAC  03470301                fcb     03,71,3,1
+                      
+                              ;fcb    03,71,7,1       ; slurred
+5CB0  0800FFF7                fdb     $0800,-(cycle_ratio*134/12)     ; -134 total pitch bend during 12 frames
+5CB4  03470400                fcb     03,71,4,0
+5CB8  08000000                fdb     $0800,0         ; stop pitch bend
+5CBC  07070000                fdb     $0707,0         ; reset pitch alteration
+5CC0  03460301                fcb     03,70,3,1
+                      
+5CC4  03460301                fcb     03,70,3,1
+                      
+5CC8  060C                    fcb     06,12   ; voice 1 end tom drum
+5CCA  03380301                fcb     03,56,3,1
+5CCE  03380301                fcb     03,56,3,1
+                      
+5CD2  060B                    fcb     06,11   ; main instr
+5CD4  03460101                fcb     03,70,1,1
+5CD8  03460101                fcb     03,70,1,1
+5CDC  03470301                fcb     03,71,3,1
+5CE0  03490301                fcb     03,73,3,1
+                      
+5CE4  00                      fcb     00      ; End of pattern
+                      
+5CE5                  pattern_23
+                              ; Voice 1: frame 4033
+5CE5  060B                    fcb     06,11   ; main instr
+5CE7  03490B01                fcb     03,73,11,1
+5CEB  03490301                fcb     03,73,3,1
+5CEF  034C0501                fcb     03,76,5,1
+5CF3  03490501                fcb     03,73,5,1
+                      
+                              ;fcb    03,71,11,1      ; slurred
+5CF7  0800000B                fdb     $0800,(cycle_ratio*202/15)      ; 202 total pitch bend during 15 frames
+5CFB  03470500                fcb     03,71,5,0
+5CFF  08000000                fdb     $0800,0         ; stop pitch bend
+5D03  03470601                fcb     03,71,6,1
+5D07  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+                              ;fcb    03,73,15,1      ; slurred
+5D0B  0800FFF4                fdb     $0800,-(cycle_ratio*696/45)     ; 696 total pitch bend during 45 frames
+5D0F  03490F01                fcb     03,73,15,1
+5D13  08000000                fdb     $0800,0         ; stop pitch bend
+5D17  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5D1B  060C                    fcb     06,12   ; voice 1 end tom drum
+5D1D  03380301                fcb     03,56,3,1
+5D21  060C                    fcb     06,12   ; voice 1 end tom drum
+5D23  03380301                fcb     03,56,3,1
+                      
+5D27  00                      fcb     00      ; End of pattern
+                      
+5D28                  pattern_24
+                              ; Voice 1: frame 4609
+5D28  060B                    fcb     06,11   ; main instr
+5D2A  034A0701                fcb     03,74,7,1
+                      
+5D2E  060C                    fcb     06,12   ; voice 1 end tom drum
+5D30  03380301                fcb     03,56,3,1
+                      
+5D34  060B                    fcb     06,11   ; main instr
+5D36  034A0101                fcb     03,74,1,1
+5D3A  034A0101                fcb     03,74,1,1
+5D3E  034C0501                fcb     03,76,5,1
+5D42  034A0501                fcb     03,74,5,1
+                      
+                              ;fcb    03,72,11,1 ; slurred
+5D46  08000005                fdb     $0800,(cycle_ratio*87/12)       ; 87 total pitch bend during 12 frames
+5D4A  03480400                fcb     03,72,4,0
+5D4E  08000000                fdb     $0800,0         ; stop pitch bend
+5D52  07070000                fdb     $0707,0         ; reset pitch alteration
+5D56  034A0701                fcb     03,74,7,1
+                      
+5D5A  060C                    fcb     06,12   ; voice 1 end tom drum
+5D5C  033B0301                fcb     03,59,3,1
+                              ;fcb    02,12,4,0,16,0,17,0,4,-1,4,-3,4,-4,4,-6,4,-8,4,-10,4,-12,4,-15,4,-18,4,-22,4,-28,4,-35 ; voice 1 'tom drum'
+5D60  03380507                fcb     03,56,5,7 ; big tom: slurred
+                              ;fcb    03,56,4,0 ; removed: this doesn't sound good
+                              ;fcb    03,38,4,4
+                      
+5D64  033B0301                fcb     03,59,3,1
+5D68  03380301                fcb     03,56,3,1
+                      
+5D6C  00                      fcb     00      ; End of pattern
+                      
+5D6D                  pattern_25
+                              ; Voice 1: frame 4993
+5D6D  060B                    fcb     06,11   ; main instr
+5D6F  034C0701                fcb     03,76,7,1
+                      
+5D73  060C                    fcb     06,12   ; voice 1 end tom drum
+5D75  03380301                fcb     03,56,3,1
+                      
+5D79  060B                    fcb     06,11   ; main instr
+5D7B  034C0101                fcb     03,76,1,1
+5D7F  034C0101                fcb     03,76,1,1
+5D83  034E0501                fcb     03,78,5,1
+5D87  034C0501                fcb     03,76,5,1
+                      
+                              ;fcb    03,74,11,1 ; slurred
+5D8B  08000005                fdb     $0800,(cycle_ratio*87/12)       ; 87 total pitch bend during 12 frames
+5D8F  034A0400                fcb     03,74,4,0
+5D93  08000000                fdb     $0800,0         ; stop pitch bend
+5D97  07070000                fdb     $0707,0         ; reset pitch alteration
+5D9B  034C0701                fcb     03,76,7,1
+                      
+5D9F  060C                    fcb     06,12   ; voice 1 end tom drum
+5DA1  033B0301                fcb     03,59,3,1
+5DA5  03380507                fcb     03,56,5,7 ; slurred
+                              ;fcb    03,56,4,0 ; removed: this doesn't sound good
+                              ;fcb    03,38,4,4
+                      
+5DA9  033B0301                fcb     03,59,3,1
+5DAD  03380301                fcb     03,56,3,1
+                      
+5DB1  00                      fcb     00      ; End of pattern
+                      
+5DB2                  pattern_26
+                              ; Voice 1: frame 5185
+5DB2  060B                    fcb     06,11   ; main instr
+5DB4  034C0701                fcb     03,76,7,1
+                      
+5DB8  060C                    fcb     06,12   ; voice 1 end tom drum
+5DBA  03380301                fcb     03,56,3,1
+                      
+5DBE  060B                    fcb     06,11   ; main instr
+5DC0  034C0101                fcb     03,76,1,1
+5DC4  034C0101                fcb     03,76,1,1
+5DC8  034E0501                fcb     03,78,5,1
+5DCC  034C0501                fcb     03,76,5,1
+                      
+                              ;fcb    03,74,9,1 ; slurred
+5DD0  08000005                fdb     $0800,(cycle_ratio*87/12)       ; 87 total pitch bend during 12 frames
+5DD4  034A0400                fcb     03,74,4,0
+5DD8  08000000                fdb     $0800,0         ; stop pitch bend
+5DDC  07070000                fdb     $0707,0         ; reset pitch alteration
+5DE0  034C0501                fcb     03,76,5,1
+                      
+5DE4  034E0501                fcb     03,78,5,1
+5DE8  03500301                fcb     03,80,3,1
+5DEC  034E0501                fcb     03,78,5,1
+5DF0  03500501                fcb     03,80,5,1
+5DF4  03510301                fcb     03,81,3,1
+                      
+5DF8  00                      fcb     00      ; End of pattern
+                      
+5DF9                  pattern_27
+                              ; Voice 1: frame 5377
+                              ; NOTE: THIS IS A HALF-PATTERN (96 frames)
+5DF9  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+5DFB  03520101                fcb     03,82,1,1
+5DFF  03520101                fcb     03,82,1,1
+5E03  03520101                fcb     03,82,1,1
+5E07  03520101                fcb     03,82,1,1
+5E0B  03520101                fcb     03,82,1,1
+5E0F  03520101                fcb     03,82,1,1
+5E13  03500101                fcb     03,80,1,1
+5E17  03520101                fcb     03,82,1,1
+5E1B  03520101                fcb     03,82,1,1
+5E1F  03500101                fcb     03,80,1,1
+5E23  03520301                fcb     03,82,3,1
+5E27  03520101                fcb     03,82,1,1
+5E2B  03520101                fcb     03,82,1,1
+5E2F  03500101                fcb     03,80,1,1
+5E33  03500101                fcb     03,80,1,1
+                      
+5E37  00                      fcb     00      ; End of pattern
+                      
+5E38                  pattern_28
+                              ; Voice 1: frame 7297
+5E38  060B                    fcb     06,11   ; main instr
+                      
+                              ;fcb    03,67,39,1 ; slurred
+5E3A  03430800                fcb     03,67,8,0
+5E3E  08000005                fdb     $0800,(cycle_ratio*162/24)      ; 162 total pitch bend during 24 frames
+5E42  03430800                fcb     03,67,8,0
+5E46  08000000                fdb     $0800,0         ; stop pitch bend
+5E4A  03431701                fcb     03,67,23,1
+5E4E  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5E52  03430301                fcb     03,67,3,1
+5E56  03450301                fcb     03,69,3,1
+5E5A  034A0301                fcb     03,74,3,1
+5E5E  03480301                fcb     03,72,3,1
+5E62  03450701                fcb     03,69,7,1
+                      
+5E66  00                      fcb     00      ; End of pattern
+                      
+5E67                  pattern_29
+                              ; Voice 1: frame 7489
+5E67  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,72,39,1 ; slurred
+5E69  03480800                fcb     03,72,8,0
+5E6D  08000007                fdb     $0800,(cycle_ratio*215/24)      ; 162 total pitch bend during 24 frames
+5E71  03480800                fcb     03,72,8,0
+5E75  08000000                fdb     $0800,0         ; stop pitch bend
+5E79  03481701                fcb     03,72,23,1
+5E7D  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5E81  034A0301                fcb     03,74,3,1
+5E85  034F0301                fcb     03,79,3,1
+5E89  034E0301                fcb     03,78,3,1
+5E8D  034A0301                fcb     03,74,3,1
+5E91  03450701                fcb     03,69,7,1
+                      
+5E95  00                      fcb     00      ; End of pattern
+                      
+5E96                  pattern_30
+                              ; Voice 1: frame 7681
+5E96  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,67,39,1 ; slurred
+5E98  03430800                fcb     03,67,8,0
+5E9C  08000005                fdb     $0800,(cycle_ratio*162/24)      ; 162 total pitch bend during 24 frames
+5EA0  03430800                fcb     03,67,8,0
+5EA4  08000000                fdb     $0800,0         ; stop pitch bend
+5EA8  03431701                fcb     03,67,23,1
+5EAC  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+                              ;fcb    03,75,11,1 ; slurred
+5EB0  0800FFFA                fdb     $0800,-(cycle_ratio*182/24)     ; 162 total pitch bend during 24 frames
+5EB4  034B0800                fcb     03,75,8,0
+5EB8  08000000                fdb     $0800,0         ; stop pitch bend
+5EBC  07070000                fdb     $0707,0         ; reset pitch alteration
+5EC0  034A0301                fcb     03,74,3,1
+                      
+5EC4  03480301                fcb     03,72,3,1
+5EC8  03450701                fcb     03,69,7,1
+                      
+5ECC  00                      fcb     00      ; End of pattern
+                      
+5ECD                  pattern_31
+                              ; Voice 1: frame 7873
+5ECD  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,74,39,1 ;slurred
+5ECF  034A0800                fcb     03,74,8,0
+5ED3  0800FFFA                fdb     $0800,-(cycle_ratio*176/24)     ; total pitch bend during 24 frames
+5ED7  034A0800                fcb     03,74,8,0
+5EDB  08000000                fdb     $0800,0         ; stop pitch bend
+5EDF  034A1701                fcb     03,74,23,1
+5EE3  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5EE7  034A0301                fcb     03,74,3,1
+5EEB  034C0301                fcb     03,76,3,1
+5EEF  034F0301                fcb     03,79,3,1
+5EF3  034E0301                fcb     03,78,3,1
+5EF7  034F0301                fcb     03,79,3,1
+5EFB  03510301                fcb     03,81,3,1
+                      
+5EFF  00                      fcb     00      ; End of pattern
+                      
+5F00                  pattern_32
+                              ; Voice 1: frame 8065
+5F00  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,79,23,1      ; slurred
+5F02  034F0800                fcb     03,79,8,0
+5F06  0800000B                fdb     $0800,(cycle_ratio*324/24)      ; total pitch bend during 24 frames
+5F0A  034F0800                fcb     03,79,8,0
+5F0E  08000000                fdb     $0800,0         ; stop pitch bend
+5F12  034F0701                fcb     03,79,7,1
+5F16  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5F1A  03510101                fcb     03,81,1,1
+5F1E  03510301                fcb     03,81,3,1
+5F22  03510101                fcb     03,81,1,1
+5F26  03510101                fcb     03,81,1,1
+5F2A  03510301                fcb     03,81,3,1
+5F2E  034F0101                fcb     03,79,1,1
+5F32  03510301                fcb     03,81,3,1
+5F36  034F0101                fcb     03,79,1,1
+5F3A  034E0301                fcb     03,78,3,1
+5F3E  034F0101                fcb     03,79,1,1
+5F42  034E0301                fcb     03,78,3,1
+5F46  034C0301                fcb     03,76,3,1
+5F4A  034A0301                fcb     03,74,3,1
+                      
+5F4E  00                      fcb     00      ; End of pattern
+                      
+5F4F                  pattern_33
+                              ; Voice 1: frame 8257
+5F4F  060B                    fcb     06,11   ; main instr
+5F51  034A0101                fcb     03,74,1,1
+5F55  034A0301                fcb     03,74,3,1
+5F59  03480101                fcb     03,72,1,1
+5F5D  034A0301                fcb     03,74,3,1
+5F61  03480101                fcb     03,72,1,1
+5F65  03470301                fcb     03,71,3,1
+5F69  03480101                fcb     03,72,1,1
+5F6D  03470301                fcb     03,71,3,1
+5F71  03450301                fcb     03,69,3,1
+5F75  03430301                fcb     03,67,3,1
+5F79  03450101                fcb     03,69,1,1
+5F7D  03450301                fcb     03,69,3,1
+5F81  03430101                fcb     03,67,1,1
+5F85  03450301                fcb     03,69,3,1
+5F89  03470101                fcb     03,71,1,1
+5F8D  03480301                fcb     03,72,3,1
+5F91  034A0101                fcb     03,74,1,1
+5F95  034C0301                fcb     03,76,3,1
+5F99  034E0301                fcb     03,78,3,1
+5F9D  034F0301                fcb     03,79,3,1
+                      
+5FA1  00                      fcb     00      ; End of pattern
+                      
+5FA2                  pattern_34
+                              ; Voice 1: frame 8449
+5FA2  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,83,39,1 ; slurred
+5FA4  03530800                fcb     03,83,8,0
+5FA8  0800FFF9                fdb     $0800,-(cycle_ratio*218/24)     ; total pitch bend during 24 frames
+5FAC  03530800                fcb     03,83,8,0
+5FB0  08000000                fdb     $0800,0         ; stop pitch bend
+5FB4  07070000                fdb     $0707,0         ; reset pitch alteration
+5FB8  03511701                fcb     03,81,23,1
+                      
+5FBC  034F0301                fcb     03,79,3,1
+5FC0  03510301                fcb     03,81,3,1
+5FC4  03540101                fcb     03,84,1,1
+5FC8  03540101                fcb     03,84,1,1
+5FCC  03510301                fcb     03,81,3,1
+5FD0  03560101                fcb     03,86,1,1
+5FD4  03560101                fcb     03,86,1,1
+5FD8  03540301                fcb     03,84,3,1
+                      
+5FDC  00                      fcb     00      ; End of pattern
+                      
+5FDD                  pattern_35
+                              ; Voice 1: frame 8641
+5FDD  060B                    fcb     06,11   ; main instr
+                              ;fcb    03,88,47,3 ; slurred
+5FDF  03580800                fcb     03,88,8,0
+5FE3  0800FFF0                fdb     $0800,-(cycle_ratio*483/24)     ; total pitch bend during 24 frames
+5FE7  03580800                fcb     03,88,8,0
+5FEB  08000000                fdb     $0800,0         ; stop pitch bend
+5FEF  03581F03                fcb     03,88,31,3
+5FF3  07070000                fdb     $0707,0         ; reset pitch alteration
+                      
+5FF7  03580101                fcb     03,88,1,1
+5FFB  03580101                fcb     03,88,1,1
+5FFF  034C0101                fcb     03,76,1,1
+6003  03590101                fcb     03,89,1,1
+6007  034C0101                fcb     03,76,1,1
+600B  03540101                fcb     03,84,1,1
+600F  03560101                fcb     03,86,1,1
+                      
+6013  00                      fcb     00      ; End of pattern
+                      
+6014                  pattern_36
+                              ; Voice 1: frame 8833,9025
+6014  060B                    fcb     06,11   ; main instr
+6016  03580101                fcb     03,88,1,1
+601A  03580101                fcb     03,88,1,1
+601E  034C0301                fcb     03,76,3,1
+6022  03560301                fcb     03,86,3,1
+6026  034C0101                fcb     03,76,1,1
+602A  03540301                fcb     03,84,3,1
+602E  034C0101                fcb     03,76,1,1
+6032  03530301                fcb     03,83,3,1
+6036  03540101                fcb     03,84,1,1
+603A  034C0101                fcb     03,76,1,1
+603E  03540101                fcb     03,84,1,1
+6042  03560101                fcb     03,86,1,1
+6046  03580101                fcb     03,88,1,1
+604A  03580101                fcb     03,88,1,1
+604E  034C0301                fcb     03,76,3,1
+6052  03560301                fcb     03,86,3,1
+6056  034C0101                fcb     03,76,1,1
+605A  03540301                fcb     03,84,3,1
+605E  034C0101                fcb     03,76,1,1
+6062  03530301                fcb     03,83,3,1
+6066  03540101                fcb     03,84,1,1
+606A  034C0101                fcb     03,76,1,1
+606E  03540101                fcb     03,84,1,1
+6072  03560101                fcb     03,86,1,1
+                      
+6076  00                      fcb     00      ; End of pattern
+                      
+6077                  pattern_37
+                              ; Voice 1: frame 9217,9409
+6077  060B                    fcb     06,11   ; main instr
+6079  03580101                fcb     03,88,1,1
+607D  03580101                fcb     03,88,1,1
+6081  034C0301                fcb     03,76,3,1
+6085  03570301                fcb     03,87,3,1
+6089  034C0101                fcb     03,76,1,1
+608D  03550301                fcb     03,85,3,1
+6091  034C0101                fcb     03,76,1,1
+6095  03530301                fcb     03,83,3,1
+6099  03550101                fcb     03,85,1,1
+609D  034C0101                fcb     03,76,1,1
+60A1  03550101                fcb     03,85,1,1
+60A5  03570101                fcb     03,87,1,1
+60A9  03580101                fcb     03,88,1,1
+60AD  03580101                fcb     03,88,1,1
+60B1  034C0301                fcb     03,76,3,1
+60B5  03570301                fcb     03,87,3,1
+60B9  034C0101                fcb     03,76,1,1
+60BD  03550301                fcb     03,85,3,1
+60C1  034C0101                fcb     03,76,1,1
+60C5  03530301                fcb     03,83,3,1
+60C9  03550101                fcb     03,85,1,1
+60CD  034C0101                fcb     03,76,1,1
+60D1  03550101                fcb     03,85,1,1
+60D5  03570101                fcb     03,87,1,1
+                      
+60D9  00                      fcb     00      ; End of pattern
+                      
+60DA                  pattern_38
+                              ; Voice 1: frame 9601,9793
+60DA  060B                    fcb     06,11   ; main instr
+60DC  03550101                fcb     03,85,1,1
+60E0  03550101                fcb     03,85,1,1
+60E4  03490301                fcb     03,73,3,1
+60E8  03530301                fcb     03,83,3,1
+60EC  03490101                fcb     03,73,1,1
+60F0  03520301                fcb     03,82,3,1
+60F4  03490101                fcb     03,73,1,1
+60F8  03500301                fcb     03,80,3,1
+60FC  034E0101                fcb     03,78,1,1
+6100  03490101                fcb     03,73,1,1
+6104  03530101                fcb     03,83,1,1
+6108  03550101                fcb     03,85,1,1
+610C  03550101                fcb     03,85,1,1
+6110  03550101                fcb     03,85,1,1
+6114  03490301                fcb     03,73,3,1
+6118  03530301                fcb     03,83,3,1
+611C  03490101                fcb     03,73,1,1
+6120  03520301                fcb     03,82,3,1
+6124  03490101                fcb     03,73,1,1
+6128  03500301                fcb     03,80,3,1
+612C  034E0101                fcb     03,78,1,1
+6130  03490101                fcb     03,73,1,1
+6134  03530101                fcb     03,83,1,1
+6138  03550101                fcb     03,85,1,1
+                      
+613C  00                      fcb     00      ; End of pattern
+                      
+613D                  pattern_39
+                              ; voice 1 frame 10561
+613D  060E                    fcb     06,14   ; voice 1 song end drum
+613F  033F0711                fcb     03,63,7,17
+                      
+6143  060C                    fcb     06,12   ; voice 1 end tom drum
+6145  03380301                fcb     03,56,3,1
+6149  03380301                fcb     03,56,3,1
+614D  00                      fcb     00      ; End of pattern
+                      
+614E                  pattern_40
+                              ; Voice 3: 'D-2' measure
+614E  0601                    fcb     06,01
+6150  03260501                fcb     03,38,5,1
+6154  03320101                fcb     03,50,1,1
+                      
+6158  0602                    fcb     06,02
+615A  033A0301                fcb     03,58,3,1
+                      
+615E  0601                    fcb     06,01
+6160  03260301                fcb     03,38,3,1
+6164  03260701                fcb     03,38,7,1
+                      
+6168  0602                    fcb     06,02
+616A  033A0301                fcb     03,58,3,1
+                      
+616E  0601                    fcb     06,01
+6170  03300101                fcb     03,48,1,1
+6174  03300101                fcb     03,48,1,1
+6178  00                      fcb     00      ; End of pattern
+                      
+6179                  pattern_41
+                              ; Voice 3: 'G-1' measure
+6179  0601                    fcb     06,01
+617B  031C0501                fcb     03,28,5,1
+617F  03280101                fcb     03,40,1,1
+                      
+6183  0602                    fcb     06,02
+6185  033A0301                fcb     03,58,3,1
+                      
+6189  0601                    fcb     06,01
+618B  031C0301                fcb     03,28,3,1
+618F  031C0701                fcb     03,28,7,1
+                      
+6193  0602                    fcb     06,02
+6195  033A0301                fcb     03,58,3,1
+                      
+6199  0601                    fcb     06,01
+619B  03260101                fcb     03,38,1,1
+619F  03280101                fcb     03,40,1,1
+61A3  00                      fcb     00      ; End of pattern
+                      
+61A4                  pattern_42
+                              ; Voice 3: 'F#-1' measure
+61A4  0601                    fcb     06,01
+61A6  031E0501                fcb     03,30,5,1
+61AA  032A0101                fcb     03,42,1,1
+                      
+61AE  0602                    fcb     06,02
+61B0  033A0301                fcb     03,58,3,1
+                      
+61B4  0601                    fcb     06,01
+61B6  031E0301                fcb     03,30,3,1
+61BA  031E0701                fcb     03,30,7,1
+                      
+61BE  0602                    fcb     06,02
+61C0  033A0301                fcb     03,58,3,1
+                      
+61C4  0601                    fcb     06,01
+61C6  03280101                fcb     03,40,1,1
+61CA  032A0101                fcb     03,42,1,1
+61CE  00                      fcb     00      ; End of pattern
+                      
+61CF                  pattern_43
+                              ; Voice 3: frame 5377
+                              ; taratatata
+61CF  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+61D1  03330101                fcb     03,51,1,1
+61D5  03330101                fcb     03,51,1,1
+61D9  03330101                fcb     03,51,1,1
+61DD  03330101                fcb     03,51,1,1
+                      
+61E1  060C                    fcb     06,12   ; voice 1 end tom drum
+61E3  03380301                fcb     03,56,3,1
+                      
+61E7  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+61E9  03310101                fcb     03,49,1,1
+61ED  03330301                fcb     03,51,3,1
+61F1  03310101                fcb     03,49,1,1
+61F5  03330101                fcb     03,51,1,1
+61F9  03330101                fcb     03,51,1,1
+                      
+61FD  060C                    fcb     06,12   ; voice 1 end tom drum
+61FF  033B0301                fcb     03,59,3,1
+6203  03380301                fcb     03,56,3,1
+6207  00                      fcb     00      ; End of pattern
+                      
+6208                  pattern_44
+                              ; voice 3 frame 10561
+6208  060E                    fcb     06,14   ; voice 1 song end drum
+620A  03530711                fcb     03,83,7,17
+                      
+620E  060C                    fcb     06,12   ; voice 1 end tom drum
+6210  03380301                fcb     03,56,3,1
+6214  03380301                fcb     03,56,3,1
+6218  00                      fcb     00      ; End of pattern
+                      
+6219                  pattern_45
+                              ; Voice 2: frame 3457
+6219  060F                    fcb     06,15
+621B  03640301                fcb     03,100,3,1
+621F  0610                    fcb     06,16
+6221  035D0301                fcb     03,93,3,1
+                      
+6225  0608                    fcb     06,08
+6227  03450301                fcb     03,69,3,1
+622B  03450301                fcb     03,69,3,1
+622F  03450501                fcb     03,69,5,1
+6233  03450501                fcb     03,69,5,1
+6237  03430501                fcb     03,67,5,1
+623B  03450101                fcb     03,69,1,1
+623F  03450301                fcb     03,69,3,1
+6243  03450301                fcb     03,69,3,1
+6247  03430301                fcb     03,67,3,1
+624B  03450101                fcb     03,69,1,1
+624F  03430101                fcb     03,67,1,1
+6253  03450301                fcb     03,69,3,1
+                      
+6257  060F                    fcb     06,15
+6259  03640301                fcb     03,100,3,1
+625D  0610                    fcb     06,16
+625F  035D0301                fcb     03,93,3,1
+6263  00                      fcb     00      ; End of pattern
+                      
+6264                  pattern_46
+                              ; Voice 2: frame 3841
+6264  060F                    fcb     06,15
+6266  03610301                fcb     03,97,3,1
+626A  0610                    fcb     06,16
+626C  035A0301                fcb     03,90,3,1
+                      
+6270  0608                    fcb     06,08
+6272  033D0301                fcb     03,61,3,1
+6276  033D0301                fcb     03,61,3,1
+627A  033D0501                fcb     03,61,5,1
+627E  033D0501                fcb     03,61,5,1
+6282  033B0501                fcb     03,59,5,1
+6286  033D0101                fcb     03,61,1,1
+628A  033D0301                fcb     03,61,3,1
+628E  033D0301                fcb     03,61,3,1
+6292  033B0301                fcb     03,59,3,1
+6296  033D0101                fcb     03,61,1,1
+629A  033B0101                fcb     03,59,1,1
+629E  033D0301                fcb     03,61,3,1
+                      
+62A2  060F                    fcb     06,15
+62A4  03610301                fcb     03,97,3,1
+62A8  0610                    fcb     06,16
+62AA  035A0301                fcb     03,90,3,1
+62AE  00                      fcb     00      ; End of pattern
+                      
+62AF                  pattern_47
+                              ; Voice 2: frame 4609
+62AF  060F                    fcb     06,15
+62B1  03690301                fcb     03,105,3,1
+62B5  0610                    fcb     06,16
+62B7  03620301                fcb     03,98,3,1
+                      
+62BB  0608                    fcb     06,08
+62BD  033E0301                fcb     03,62,3,1
+62C1  033E0301                fcb     03,62,3,1
+62C5  033E0501                fcb     03,62,5,1
+62C9  033E0501                fcb     03,62,5,1
+62CD  033C0501                fcb     03,60,5,1
+62D1  033E0101                fcb     03,62,1,1
+62D5  033E0301                fcb     03,62,3,1
+62D9  033E0301                fcb     03,62,3,1
+62DD  033C0301                fcb     03,60,3,1
+62E1  033E0101                fcb     03,62,1,1
+62E5  033C0101                fcb     03,60,1,1
+62E9  033E0301                fcb     03,62,3,1
+                      
+62ED  060F                    fcb     06,15
+62EF  03690301                fcb     03,105,3,1
+62F3  0610                    fcb     06,16
+62F5  03620301                fcb     03,98,3,1
+62F9  00                      fcb     00      ; End of pattern
+                      
+62FA                  pattern_48
+                              ; Voice 2: frame 4993
+62FA  060F                    fcb     06,15
+62FC  036B0301                fcb     03,107,3,1
+6300  0610                    fcb     06,16
+6302  03640301                fcb     03,100,3,1
+                      
+6306  0608                    fcb     06,08
+6308  03400301                fcb     03,64,3,1
+630C  03400301                fcb     03,64,3,1
+6310  03400501                fcb     03,64,5,1
+6314  03400501                fcb     03,64,5,1
+6318  033E0501                fcb     03,62,5,1
+631C  03400101                fcb     03,64,1,1
+6320  03400301                fcb     03,64,3,1
+6324  03400301                fcb     03,64,3,1
+6328  033E0301                fcb     03,62,3,1
+632C  03400101                fcb     03,64,1,1
+6330  033E0101                fcb     03,62,1,1
+6334  03400301                fcb     03,64,3,1
+                      
+6338  060F                    fcb     06,15
+633A  036B0301                fcb     03,107,3,1
+633E  0610                    fcb     06,16
+6340  03640301                fcb     03,100,3,1
+6344  00                      fcb     00      ; End of pattern
+                      
+6345                  pattern_49
+                              ; Voice 2: frame 5377
+                              ; NOTE: THIS IS A HALF-PATTERN (96 frames)
+6345  0608                    fcb     06,08   ; 'voice 2' snare-instrument
+6347  034F0101                fcb     03,79,1,1
+634B  034F0101                fcb     03,79,1,1
+634F  034F0101                fcb     03,79,1,1
+6353  034F0101                fcb     03,79,1,1
+6357  034F0101                fcb     03,79,1,1
+635B  034F0101                fcb     03,79,1,1
+635F  034D0101                fcb     03,77,1,1
+6363  034F0101                fcb     03,79,1,1
+6367  034F0101                fcb     03,79,1,1
+636B  034D0101                fcb     03,77,1,1
+636F  034F0301                fcb     03,79,3,1
+6373  034F0101                fcb     03,79,1,1
+6377  034F0101                fcb     03,79,1,1
+637B  034D0101                fcb     03,77,1,1
+637F  034D0101                fcb     03,77,1,1
+                      
+6383  00                      fcb     00      ; End of pattern
+                      
+6384                  pattern_50
+                              ; voice 2 frame 10561
+6384  060E                    fcb     06,14   ; voice 1 song end drum
+6386  03530711                fcb     03,83,7,17
+                      
+638A  060C                    fcb     06,12   ; voice 1 end tom drum
+638C  03380301                fcb     03,56,3,1
+6390  03380301                fcb     03,56,3,1
+6394  00                      fcb     00      ; End of pattern
+                      
+6395                  waveforms_start
+                      
+                      ; Noisetable: trimmed down to 2048 elements
+6395                  noise4096
+6395  22F304EF0DF0DB0C1EF9FFFFD812FF21EEF7E71E23FD1919FAF2F8190DDE1A12          fcb 34,-13,4,-17,13,-16,-37,12,30,-7,-1,-1,-40,18,-1,33,-18,-9,-25,30,35,-3,25,25,-6,-14,-8,25,13,-34,26,18
+63B5  19DB0822DCEED70C2910FB2509FE0E1BE3F71423DD0C0FEFDCDD28F2DCE12314          fcb 25,-37,8,34,-36,-18,-41,12,41,16,-5,37,9,-2,14,27,-29,-9,20,35,-35,12,15,-17,-36,-35,40,-14,-36,-31,35,20
+63D5  18FA0CF91F0AF0EF28212611E7EEFF0E211EFC03F8D8DBE91F292717F31801EB          fcb 24,-6,12,-7,31,10,-16,-17,40,33,38,17,-25,-18,-1,14,33,30,-4,3,-8,-40,-37,-23,31,41,39,23,-13,24,1,-21
+63F5  080A010E1FE019F31DEFFC19DB10FED8DB0008E317E4FAE9E5F814EEEE21F3E7          fcb 8,10,1,14,31,-32,25,-13,29,-17,-4,25,-37,16,-2,-40,-37,0,8,-29,23,-28,-6,-23,-27,-8,20,-18,-18,33,-13,-25
+6415  06192315DCDF13F2ECE9EC0102180AE81726F5FEEBE41411210805EE1D1B06F3          fcb 6,25,35,21,-36,-33,19,-14,-20,-23,-20,1,2,24,10,-24,23,38,-11,-2,-21,-28,20,17,33,8,5,-18,29,27,6,-13
+6435  12E701DB04FC1305FC2606F9E5E9EFF525D91A05D90CF71F142409FDE7FE17E7          fcb 18,-25,1,-37,4,-4,19,5,-4,38,6,-7,-27,-23,-17,-11,37,-39,26,5,-39,12,-9,31,20,36,9,-3,-25,-2,23,-25
+6455  12D916E70A061EE3FB2504F30EE2ECFBDEF6240EFB19DE15251D251B03EC26DF          fcb 18,-39,22,-25,10,6,30,-29,-5,37,4,-13,14,-30,-20,-5,-34,-10,36,14,-5,25,-34,21,37,29,37,27,3,-20,38,-33
+6475  2004E8E211F707221906EBFA21E80FE0ED1B0DFADDF325E001120B0FF5E201DF          fcb 32,4,-24,-30,17,-9,7,34,25,6,-21,-6,33,-24,15,-32,-19,27,13,-6,-35,-13,37,-32,1,18,11,15,-11,-30,1,-33
+6495  EDE1DFDEFCF514091CED04E11E0BE919F4EC120B01FC0CFB25DB0104EA03E9DE          fcb -19,-31,-33,-34,-4,-11,20,9,28,-19,4,-31,30,11,-23,25,-12,-20,18,11,1,-4,12,-5,37,-37,1,4,-22,3,-23,-34
+64B5  F8250F0203FF0B0AFFFDF6DD14ED161F17F91DFE0C1FE2E209EAF8EE1C05EB0D          fcb -8,37,15,2,3,-1,11,10,-1,-3,-10,-35,20,-19,22,31,23,-7,29,-2,12,31,-30,-30,9,-22,-8,-18,28,5,-21,13
+64D5  0A07E9EF20F020E8F10FFCEC1BEE19F513EC0FF4FE260DEBF517DB21EA11E9F5          fcb 10,7,-23,-17,32,-16,32,-24,-15,15,-4,-20,27,-18,25,-11,19,-20,15,-12,-2,38,13,-21,-11,23,-37,33,-22,17,-23,-11
+64F5  1FF10BF70B180DF002FFFB200B02E7DC220A0F21E305E80E12F62224F1E2E4F3          fcb 31,-15,11,-9,11,24,13,-16,2,-1,-5,32,11,2,-25,-36,34,10,15,33,-29,5,-24,14,18,-10,34,36,-15,-30,-28,-13
+6515  1A04DCE8210DF910E1F81E0D15F624FF1B02F4F0192014E8DCFC14E1F5F2FB05          fcb 26,4,-36,-24,33,13,-7,16,-31,-8,30,13,21,-10,36,-1,27,2,-12,-16,25,32,20,-24,-36,-4,20,-31,-11,-14,-5,5
+6535  0F15E8F1E92223DFFF24F5F1DF0B20E6061E1D08E724E3E6DF0C1BE811FE201B          fcb 15,21,-24,-15,-23,34,35,-33,-1,36,-11,-15,-33,11,32,-26,6,30,29,8,-25,36,-29,-26,-33,12,27,-24,17,-2,32,27
+6555  F9001D0A1DF61009221EE61AF716DEE818140BFD0BE9E516F80B080122F11C14          fcb -7,0,29,10,29,-10,16,9,34,30,-26,26,-9,22,-34,-24,24,20,11,-3,11,-23,-27,22,-8,11,8,1,34,-15,28,20
+6575  00ED1CF91524F406F91804151B130DFFE0E9100DE3FAF0EBEDE4EC0812201E0A          fcb 0,-19,28,-7,21,36,-12,6,-7,24,4,21,27,19,13,-1,-32,-23,16,13,-29,-6,-16,-21,-19,-28,-20,8,18,32,30,10
+6595  EF0011E00E091E17F2FA171017231219EFE9E9F7F9EAF7E7F90D18F21DEBE206          fcb -17,0,17,-32,14,9,30,23,-14,-6,23,16,23,35,18,25,-17,-23,-23,-9,-7,-22,-9,-25,-7,13,24,-14,29,-21,-30,6
+65B5  031C1FF309FFDFE017F7DF0809010013EB181D1D0B0009EBFCE8030AFCF21200          fcb 3,28,31,-13,9,-1,-33,-32,23,-9,-33,8,9,1,0,19,-21,24,29,29,11,0,9,-21,-4,-24,3,10,-4,-14,18,0
+65D5  1CE31CEF0FF5020D17FEE90D18160403EEF51922E61B0C0EFFEFF12200E11AE3          fcb 28,-29,28,-17,15,-11,2,13,23,-2,-23,13,24,22,4,3,-18,-11,25,34,-26,27,12,14,-1,-17,-15,34,0,-31,26,-29
+65F5  04091FE9F30015E215FDE9FCEFE021EDF9161104E8FE0417F7131CE2F8110C11          fcb 4,9,31,-23,-13,0,21,-30,21,-3,-23,-4,-17,-32,33,-19,-7,22,17,4,-24,-2,4,23,-9,19,28,-30,-8,17,12,17
+6615  F7F1F208181406E91BEB150C0B0BF10BF8FFF017F3130E020305EF0C03F31614          fcb -9,-15,-14,8,24,20,6,-23,27,-21,21,12,11,11,-15,11,-8,-1,-16,23,-13,19,14,2,3,5,-17,12,3,-13,22,20
+6635  140CE3022107E0131BFD1AFEEB1BF00101021EF7F3201FFEEBFF1BE808E5FAF0          fcb 20,12,-29,2,33,7,-32,19,27,-3,26,-2,-21,27,-16,1,1,2,30,-9,-13,32,31,-2,-21,-1,27,-24,8,-27,-6,-16
+6655  E408F0E201150805F3EAE1E91EFAEFED14EFF61A201108E9E2F90319FAE2191A          fcb -28,8,-16,-30,1,21,8,5,-13,-22,-31,-23,30,-6,-17,-19,20,-17,-10,26,32,17,8,-23,-30,-7,3,25,-6,-30,25,26
+6675  1F171605F519F919EBED0DF6F9F518191A181203FAF3F31403EF070D1204EBF6          fcb 31,23,22,5,-11,25,-7,25,-21,-19,13,-10,-7,-11,24,25,26,24,18,3,-6,-13,-13,20,3,-17,7,13,18,4,-21,-10
+6695  E3ED0B1704100B18F300FB1F1CFBF307E912070A0CF4E504151B000B180C021B          fcb -29,-19,11,23,4,16,11,24,-13,0,-5,31,28,-5,-13,7,-23,18,7,10,12,-12,-27,4,21,27,0,11,24,12,2,27
+66B5  F8FDFF19FD19F000E9E400F3F6191CE6FDF4E218EFE5FAED0A0002E71A1B0A15          fcb -8,-3,-1,25,-3,25,-16,0,-23,-28,0,-13,-10,25,28,-26,-3,-12,-30,24,-17,-27,-6,-19,10,0,2,-25,26,27,10,21
+66D5  10001A1CFAFAF2FE0D13F00BF6061215FE12E7EAFDF7EEF4FB1A1906F6F60C1E          fcb 16,0,26,28,-6,-6,-14,-2,13,19,-16,11,-10,6,18,21,-2,18,-25,-22,-3,-9,-18,-12,-5,26,25,6,-10,-10,12,30
+66F5  0AF105081D0FF6F414150F1B1B12E8F1FF0C1606E3FF0DF6EDF310E808FEEBE9          fcb 10,-15,5,8,29,15,-10,-12,20,21,15,27,27,18,-24,-15,-1,12,22,6,-29,-1,13,-10,-19,-13,16,-24,8,-2,-21,-23
+6715  EE06180D19E7FCF115EFEAEBF5F705F9FBFDF2110EF60BFB0A07EA0D04FD170B          fcb -18,6,24,13,25,-25,-4,-15,21,-17,-22,-21,-11,-9,5,-7,-5,-3,-14,17,14,-10,11,-5,10,7,-22,13,4,-3,23,11
+6735  EA01F3F9E91C1BFA141CF8020C06F9EB1500E9FD03F3ED02F3E6161C1C18F51B          fcb -22,1,-13,-7,-23,28,27,-6,20,28,-8,2,12,6,-7,-21,21,0,-23,-3,3,-13,-19,2,-13,-26,22,28,28,24,-11,27
+6755  15E41A1C03060C0501F4F5100601E4EEE9F9EB0805F00AFBE50B170618E7E8E8          fcb 21,-28,26,28,3,6,12,5,1,-12,-11,16,6,1,-28,-18,-23,-7,-21,8,5,-16,10,-5,-27,11,23,6,24,-25,-24,-24
+6775  FFE9EEF3FC0917FEF0F4100C04FFFB191B051B09EB06EC04070E18060303F90F          fcb -1,-23,-18,-13,-4,9,23,-2,-16,-12,16,12,4,-1,-5,25,27,5,27,9,-21,6,-20,4,7,14,24,6,3,3,-7,15
+6795  0D111BEDECF7EDFC1BEDFE02FA00170BEB0EF0EE02FD13F5FBFC06F5F2090C0D          fcb 13,17,27,-19,-20,-9,-19,-4,27,-19,-2,2,-6,0,23,11,-21,14,-16,-18,2,-3,19,-11,-5,-4,6,-11,-14,9,12,13
+67B5  1AF2FB16ECFAFD0800EB190A1AE9F4FB0AFCF31BFEF0020BFB1600F3FDECE9F8          fcb 26,-14,-5,22,-20,-6,-3,8,0,-21,25,10,26,-23,-12,-5,10,-4,-13,27,-2,-16,2,11,-5,22,0,-13,-3,-20,-23,-8
+67D5  F400F9E9EAE9F3EDE9FA0F13FBF1081504F3FFF90518F807F300E8F811F40F0F          fcb -12,0,-7,-23,-22,-23,-13,-19,-23,-6,15,19,-5,-15,8,21,4,-13,-1,-7,5,24,-8,7,-13,0,-24,-8,17,-12,15,15
+67F5  F80D07FD10F1F9060BF5F8EB15FF040CF714EF0B12F30F0CF5FF070CF11506E8          fcb -8,13,7,-3,16,-15,-7,6,11,-11,-8,-21,21,-1,4,12,-9,20,-17,11,18,-13,15,12,-11,-1,7,12,-15,21,6,-24
+6815  01EE17ECF5EDEA07EAED1709111AE9F3EDE9FF0CF4F110FDFFF0011102FA0D10          fcb 1,-18,23,-20,-11,-19,-22,7,-22,-19,23,9,17,26,-23,-13,-19,-23,-1,12,-12,-15,16,-3,-1,-16,1,17,2,-6,13,16
+6835  101516FE070A1700FDF211EF0EFAFC050EFCFF00EAFD0E16FE1713F915060C08          fcb 16,21,22,-2,7,10,23,0,-3,-14,17,-17,14,-6,-4,5,14,-4,-1,0,-22,-3,14,22,-2,23,19,-7,21,6,12,8
+6855  14F5EFEEEEF8EDF70E16EFFBFB0DFF0B100EF0F504EEFDF200F110F609E90413          fcb 20,-11,-17,-18,-18,-8,-19,-9,14,22,-17,-5,-5,13,-1,11,16,14,-16,-11,4,-18,-3,-14,0,-15,16,-10,9,-23,4,19
+6875  EE0118EDF41618150A0B14020312FBF5FB15FD07F91715EB03F7F914F2030804          fcb -18,1,24,-19,-12,22,24,21,10,11,20,2,3,18,-5,-11,-5,21,-3,7,-7,23,21,-21,3,-9,-7,20,-14,3,8,4
+6895  FD150F0202E9FEEB0016ED17F6130C0CF807ECFFEBF21118F40BF80DED0A0C05          fcb -3,21,15,2,2,-23,-2,-21,0,22,-19,23,-10,19,12,12,-8,7,-20,-1,-21,-14,17,24,-12,11,-8,13,-19,10,12,5
+68B5  011211160D010CEEECF101FD0A0504FDEB0F0D120003F1FB0E17030BEE00ED05          fcb 1,18,17,22,13,1,12,-18,-20,-15,1,-3,10,5,4,-3,-21,15,13,18,0,3,-15,-5,14,23,3,11,-18,0,-19,5
+68D5  0509F8F1111705F7EA0E1410F3F6F5F809F7F2F809F9F4F9F0030D11EFFEF5EC          fcb 5,9,-8,-15,17,23,5,-9,-22,14,20,16,-13,-10,-11,-8,9,-9,-14,-8,9,-7,-12,-7,-16,3,13,17,-17,-2,-11,-20
+68F5  0A0CF5F31200EC0704FCEC00F30A04F7EEEB0DFF0CFB100A0FEB0505F307F5F0          fcb 10,12,-11,-13,18,0,-20,7,4,-4,-20,0,-13,10,4,-9,-18,-21,13,-1,12,-5,16,10,15,-21,5,5,-13,7,-11,-16
+6915  FC0204FCEC0404130701FC12FAF60D110512EBF9ECEBF5F4EF120305030A010E          fcb -4,2,4,-4,-20,4,4,19,7,1,-4,18,-6,-10,13,17,5,18,-21,-7,-20,-21,-11,-12,-17,18,3,5,3,10,1,14
+6935  14FFF4FC09FDF0090C0C0013FF0E0103FB13F3F112F113F80F0FED0F040D1012          fcb 20,-1,-12,-4,9,-3,-16,9,12,12,0,19,-1,14,1,3,-5,19,-13,-15,18,-15,19,-8,15,15,-19,15,4,13,16,18
+6955  F8ED12EFFD0513FAF30B0706FF0C0BFEF0F102FFEEF2ECF40300FD020C030214          fcb -8,-19,18,-17,-3,5,19,-6,-13,11,7,6,-1,12,11,-2,-16,-15,2,-1,-18,-14,-20,-12,3,0,-3,2,12,3,2,20
+6975  EC0CFD0810FC0C120AF2F6FDFFF012FFF700F6F1F5ED0D11000012F70EF5F3FB          fcb -20,12,-3,8,16,-4,12,18,10,-14,-10,-3,-1,-16,18,-1,-9,0,-10,-15,-11,-19,13,17,0,0,18,-9,14,-11,-13,-5
+6995  F9F6F70611FD09FE1104FD1209F512FC0FF2F9F6FAF5F5F8FF02090B04000BF3          fcb -7,-10,-9,6,17,-3,9,-2,17,4,-3,18,9,-11,18,-4,15,-14,-7,-10,-6,-11,-11,-8,-1,2,9,11,4,0,11,-13
+69B5  F0ED13080212F900130EF8F206F2130906F208F4FF0AFC0E12FC0EF3EE060EF8          fcb -16,-19,19,8,2,18,-7,0,19,14,-8,-14,6,-14,19,9,6,-14,8,-12,-1,10,-4,14,18,-4,14,-13,-18,6,14,-8
+69D5  0F08120F100CFE0407070DF70DFD090A1104F9060EF3EEEEF50AF80BFA00F6FD          fcb 15,8,18,15,16,12,-2,4,7,7,13,-9,13,-3,9,10,17,4,-7,6,14,-13,-18,-18,-11,10,-8,11,-6,0,-10,-3
+69F5  10100102FBF6FFEF020BEE0A12F2F6020D080D020F00F10E10010DFA0AFBF4EF          fcb 16,16,1,2,-5,-10,-1,-17,2,11,-18,10,18,-14,-10,2,13,8,13,2,15,0,-15,14,16,1,13,-6,10,-5,-12,-17
+6A15  EFFD0FF6FAF1F30A09F00500EF0B1110120612F4F3FDF1FD07FEFC070BF2FAFA          fcb -17,-3,15,-10,-6,-15,-13,10,9,-16,5,0,-17,11,17,16,18,6,18,-12,-13,-3,-15,-3,7,-2,-4,7,11,-14,-6,-6
+6A35  090CF50CFF090306F0F8FD000F040A050907FC11F9110AF803FC00F3F2F20BFD          fcb 9,12,-11,12,-1,9,3,6,-16,-8,-3,0,15,4,10,5,9,7,-4,17,-7,17,10,-8,3,-4,0,-13,-14,-14,11,-3
+6A55  F710FE0001F3FBFA0DFB10F310F71010F3F0FE0BF60E0111FCF80BF1FCF9F2F0          fcb -9,16,-2,0,1,-13,-5,-6,13,-5,16,-13,16,-9,16,16,-13,-16,-2,11,-10,14,1,17,-4,-8,11,-15,-4,-7,-14,-16
+6A75  FA010306FF03FDF3FEF50D11FE0AF7F6080F03080DFC0E0A020F0CF903F41109          fcb -6,1,3,6,-1,3,-3,-13,-2,-11,13,17,-2,10,-9,-10,8,15,3,8,13,-4,14,10,2,15,12,-7,3,-12,17,9
+6A95  FFFB00F3FDF6F3F5FE0602F10CF304F90D0BF3F302F4F209F6FE100C0B030DF2          fcb -1,-5,0,-13,-3,-10,-13,-11,-2,6,2,-15,12,-13,4,-7,13,11,-13,-13,2,-12,-14,9,-10,-2,16,12,11,3,13,-14
+6AB5  0BF90C0702FBF7FEFB0BFDFF0EFA050E030EF60000FDFD08F20600F6FCF8000F          fcb 11,-7,12,7,2,-5,-9,-2,-5,11,-3,-1,14,-6,5,14,3,14,-10,0,0,-3,-3,8,-14,6,0,-10,-4,-8,0,15
+6AD5  F8F6FD0BFCF40D06F7040306FFF9F809FF080E0DF80F09FB0107040802F20A00          fcb -8,-10,-3,11,-4,-12,13,6,-9,4,3,6,-1,-7,-8,9,-1,8,14,13,-8,15,9,-5,1,7,4,8,2,-14,10,0
+6AF5  F30C04F4FCF309FC08F5FC02FDFA05F50803FF02FCF9030B070300020F04FFFC          fcb -13,12,4,-12,-4,-13,9,-4,8,-11,-4,2,-3,-6,5,-11,8,3,-1,2,-4,-7,3,11,7,3,0,2,15,4,-1,-4
+6B15  00FDF3F8FAF90A08FFFB07F30CF704F3FF0D030B060EFE03FCFCF507FDF5FB0E          fcb 0,-3,-13,-8,-6,-7,10,8,-1,-5,7,-13,12,-9,4,-13,-1,13,3,11,6,14,-2,3,-4,-4,-11,7,-3,-11,-5,14
+6B35  F904F3FC0EFBFF0EFAFC07FFFBFCFCFEF5FAF705FA03FEFF07F6FD0702F60506          fcb -7,4,-13,-4,14,-5,-1,14,-6,-4,7,-1,-5,-4,-4,-2,-11,-6,-9,5,-6,3,-2,-1,7,-10,-3,7,2,-10,5,6
+6B55  0703090C02FDFE0A0DFCF9FF0D05FA0C0BF50B0CF5F3F6F8F4F5F8FD0208FB02          fcb 7,3,9,12,2,-3,-2,10,13,-4,-7,-1,13,5,-6,12,11,-11,11,12,-11,-13,-10,-8,-12,-11,-8,-3,2,8,-5,2
+6B75  F6FC0405F7F80CF40CFE0C0A0203FBF50A0B01F5FF04FCFB09FBF903030BFBFE          fcb -10,-4,4,5,-9,-8,12,-12,12,-2,12,10,2,3,-5,-11,10,11,1,-11,-1,4,-4,-5,9,-5,-7,3,3,11,-5,-2
+                      
+                      ; Sintable: 256 elements
+6B95                  sin256
+6B95  000102030405060708090A0B0C0D0E0F10111213141516161718191A1B1B1C1D          fcb 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,22,23,24,25,26,27,27,28,29
+6BB5  1E1E1F20202122222323242525262626272728282828292929292A2A2A2A2A2A          fcb 30,30,31,32,32,33,34,34,35,35,36,37,37,38,38,38,39,39,40,40,40,40,41,41,41,41,42,42,42,42,42,42
+6BD5  2A2A2A2A2A2A2A29292929282828282727262626252524232322222120201F1E          fcb 42,42,42,42,42,42,42,41,41,41,41,40,40,40,40,39,39,38,38,38,37,37,36,35,35,34,34,33,32,32,31,30
+6BF5  1E1D1C1B1B1A19181716161514131211100F0E0D0C0B0A090807060504030201          fcb 30,29,28,27,27,26,25,24,23,22,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1
+                              rmb     128
+                              ; these remaining values are auto-computed
+                              ;fcb 0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11,-12,-13,-14,-15,-16,-17,-18,-19,-20,-21,-22,-22,-23,-24,-25,-26,-27,-27,-28,-29
+                              ;fcb -30,-30,-31,-32,-32,-33,-34,-34,-35,-35,-36,-37,-37,-38,-38,-38,-39,-39,-40,-40,-40,-40,-41,-41,-41,-41,-42,-42,-42,-42,-42,-42
+                              ;fcb -42,-42,-42,-42,-42,-42,-42,-41,-41,-41,-41,-40,-40,-40,-40,-39,-39,-38,-38,-38,-37,-37,-36,-35,-35,-34,-34,-33,-32,-32,-31,-30
+                              ;fcb -30,-29,-28,-27,-27,-26,-25,-24,-23,-22,-22,-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10,-9,-8,-7,-6,-5,-4,-3,-2,-1
+                      
+                      ; sawtooth table: 256 elements
+6C95                  saw256
+6C95  D6D6D6D6D7D7D7D8D8D8D9D9D9DADADADBDBDBDCDCDCDDDDDDDEDEDEDFDFDFE0          fcb -42,-42,-42,-42,-41,-41,-41,-40,-40,-40,-39,-39,-39,-38,-38,-38,-37,-37,-37,-36,-36,-36,-35,-35,-35,-34,-34,-34,-33,-33,-33,-32
+6CB5  E0E0E1E1E1E2E2E2E3E3E3E4E4E4E5E5E5E6E6E6E7E7E7E8E8E8E9E9E9EAEAEA          fcb -32,-32,-31,-31,-31,-30,-30,-30,-29,-29,-29,-28,-28,-28,-27,-27,-27,-26,-26,-26,-25,-25,-25,-24,-24,-24,-23,-23,-23,-22,-22,-22
+6CD5  EBEBEBECECECEDEDEDEEEEEEEFEFEFF0F0F0F1F1F1F2F2F2F3F3F3F4F4F4F5F5          fcb -21,-21,-21,-20,-20,-20,-19,-19,-19,-18,-18,-18,-17,-17,-17,-16,-16,-16,-15,-15,-15,-14,-14,-14,-13,-13,-13,-12,-12,-12,-11,-11
+6CF5  F5F6F6F6F7F7F7F8F8F8F9F9F9FAFAFAFBFBFBFCFCFCFDFDFDFEFEFEFFFFFF00          fcb -11,-10,-10,-10,-9,-9,-9,-8,-8,-8,-7,-7,-7,-6,-6,-6,-5,-5,-5,-4,-4,-4,-3,-3,-3,-2,-2,-2,-1,-1,-1,0
+6D15  00000101010202020303030404040505050606060707070808080909090A0A0A          fcb 0,0,1,1,1,2,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,10,10,10
+6D35  0B0B0B0C0C0C0D0D0D0E0E0E0F0F0F1010101111111212121313131414141515          fcb 11,11,11,12,12,12,13,13,13,14,14,14,15,15,15,16,16,16,17,17,17,18,18,18,19,19,19,20,20,20,21,21
+6D55  151616161717171818181919191A1A1A1B1B1B1C1C1C1D1D1D1E1E1E1F1F1F20          fcb 21,22,22,22,23,23,23,24,24,24,25,25,25,26,26,26,27,27,27,28,28,28,29,29,29,30,30,30,31,31,31,32
+6D75  20202121212222222323232424242525252626262727272828282929292A2A2A          fcb 32,32,33,33,33,34,34,34,35,35,35,36,36,36,37,37,37,38,38,38,39,39,39,40,40,40,41,41,41,42,42,42
+                      
+6D95                  triangle256
+6D95  D6D6D7D7D8D9D9DADBDBDCDDDDDEDFDFE0E1E1E2E3E3E4E5E5E6E7E7E8E9E9EA          fcb -42,-42,-41,-41,-40,-39,-39,-38,-37,-37,-36,-35,-35,-34,-33,-33,-32,-31,-31,-30,-29,-29,-28,-27,-27,-26,-25,-25,-24,-23,-23,-22
+6DB5  EBEBECEDEDEEEFEFF0F1F1F2F3F3F4F5F5F6F7F7F8F9F9FAFBFBFCFDFDFEFFFF          fcb -21,-21,-20,-19,-19,-18,-17,-17,-16,-15,-15,-14,-13,-13,-12,-11,-11,-10,-9,-9,-8,-7,-7,-6,-5,-5,-4,-3,-3,-2,-1,-1
+6DD5  0001010203030405050607070809090A0B0B0C0D0D0E0F0F1011111213131415          fcb 0,1,1,2,3,3,4,5,5,6,7,7,8,9,9,10,11,11,12,13,13,14,15,15,16,17,17,18,19,19,20,21
+6DF5  151617171819191A1B1B1C1D1D1E1F1F2021212223232425252627272829292A          fcb 21,22,23,23,24,25,25,26,27,27,28,29,29,30,31,31,32,33,33,34,35,35,36,37,37,38,39,39,40,41,41,42
+6E15  2A2A2929282727262525242323222121201F1F1E1D1D1C1B1B1A191918171716          fcb 42,42,41,41,40,39,39,38,37,37,36,35,35,34,33,33,32,31,31,30,29,29,28,27,27,26,25,25,24,23,23,22
+6E35  1515141313121111100F0F0E0D0D0C0B0B0A0909080707060505040303020101          fcb 21,21,20,19,19,18,17,17,16,15,15,14,13,13,12,11,11,10,9,9,8,7,7,6,5,5,4,3,3,2,1,1
+6E55  00FFFFFEFDFDFCFBFBFAF9F9F8F7F7F6F5F5F4F3F3F2F1F1F0EFEFEEEDEDECEB          fcb 0,-1,-1,-2,-3,-3,-4,-5,-5,-6,-7,-7,-8,-9,-9,-10,-11,-11,-12,-13,-13,-14,-15,-15,-16,-17,-17,-18,-19,-19,-20,-21
+6E75  EBEAE9E9E8E7E7E6E5E5E4E3E3E2E1E1E0DFDFDEDDDDDCDBDBDAD9D9D8D7D7D6          fcb -21,-22,-23,-23,-24,-25,-25,-26,-27,-27,-28,-29,-29,-30,-31,-31,-32,-33,-33,-34,-35,-35,-36,-37,-37,-38,-39,-39,-40,-41,-41,-42
+                      
+                      ; all values below this point are auto-generated at runtime
+6E95                  mute256         rmb     256
+                      
+6F95                  sin256_s1       rmb     256     ; volume shifted by 1
+7095                  sin256_s2       rmb     256     ; volume shifted by 2
+                      
+7195                  saw256_s1       rmb     256     ; volume shifted by 1
+7295                  saw256_s2       rmb     256     ; volume shifted by 2
+                      
+7395                  triangle256_s1  rmb     256     ; volume shifted by 1
+7495                  triangle256_s2  rmb     256     ; volume shifted by 2
+                      
+7595                  square256       rmb     256
+7695                  square256_s1    rmb     256     ; volume shifted by 1
+7795                  square256_s2    rmb     256     ; volume shifted by 2
+                      
+                      
+7895                  rect256         rmb     256     ; same as square but inverted to help with mixing
+7995                  rect256_s1      rmb     256
+7A95                  rect256_s2      rmb     256
+                      
+7B95                  waveforms_end
+                      
+                      ;********************
+                      ; End
