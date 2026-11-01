@@ -12,6 +12,16 @@ handle, **Remz**. He published it on his site, "Rem's CoCo 3", alongside
 other CoCo 3 demos (SCALE, SPRITE, WOLF). All of them were written for a
 stock 128K CoCo 3, and the demo disk was posted in February 2010.
 
+He kept working on the site into 2012: his texture-mapping demo disk is
+dated January 2012 and his COCOSID3 source package October 2012. Its pages
+are signed "Copyright (c) 2010 Remi Veilleux", later "2012", followed by
+the contact address he published there, rveilleux@gmail.com.
+
+A games programmer named Rémi Veilleux is credited on titles from
+*Syberia* (Microids, 2002) to *The Casting of Frank Stone* (2024), with
+Supermassive Games, Anuman Interactive and Psyop among his studios.
+Nothing found so far confirms that he is the CoCoSID author.
+
 His site describes three versions:
 
 - **COCOSID** plays Rob Hubbard's music for the Commodore 64 game
@@ -74,6 +84,8 @@ Sources:
   [demo files and descriptions](https://web.archive.org/web/20160823232904/https://sites.google.com/site/rveilleux/coco3home/rems-coco-3-files),
   [CoCoSID3 source and conversion guide](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3)
 - CoCo Central, [CoCoSID CoCo 3 playing Commando](https://cococentral.com/cocosid-coco-3-playing-commando/)
+- RAWG, [Rémi Veilleux](https://rawg.io/creators/remi-veilleux) (the games
+  programmer; not confirmed to be the same person)
 
 ## Contents
 
