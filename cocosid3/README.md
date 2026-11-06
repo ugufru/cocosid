@@ -1,8 +1,10 @@
 # COCOSID3
 
-COCOSID3 is the author's last CoCoSID, from 2012. It plays the C64 *R-Type*
-music (Chris Hülsbeck and Ramiro Vaca, 1988), converted automatically from a
-`.sid` file with SIDDUMP and his Perl script. It needs a CoCo 3.
+COCOSID3 is the author's last CoCoSID. It plays the C64 *R-Type* music (Chris
+Hülsbeck and Ramiro Vaca, 1988), converted automatically from a `.sid` file
+with SIDDUMP and his Perl script. It needs a CoCo 3. The build here and its
+source package date from 2012, but the same player is on his February 2010
+disk with the song dumped two frames earlier (see `../docs/remdisk.md`).
 
 Rather than disassembling it, this folder rebuilds it from the author's own
 source. The source is in `third-party/cocosid3/cocosid3.asm`, but his package

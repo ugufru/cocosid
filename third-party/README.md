@@ -102,8 +102,8 @@ From the author's
 |---|---|---|
 | `REMDISK.dsk` | 2010-02-21 | CoCo 3 disk with `COCOSID3.BIN` (11,577 bytes), `COCOSID2.BIN` (29,056 bytes), `COCOSID.BIN` (22,203 bytes), `SCALE.BIN`, `SPRITE.BIN` and `WOLF.BIN` |
 
-Its `COCOSID2.BIN` is probably the automatically converted version his site
-describes: it has the same load layout as the 2012 `COCOSID3.BIN`, and the
-3,668-byte `COCOSID2.BIN` on the 13 February disk does not fit "takes more
-memory than the previous version". This comes from the file structure only.
-The programs have not been run or disassembled yet (issue 22).
+Its `COCOSID2.BIN` is the automatically converted version his site describes,
+playing *Battle Valley* by Jeroen Tel. `COCOSID2.BIN` and `COCOSID3.BIN` are
+extracted to `files/remdisk/`, and `docs/remdisk.md` covers them. The
+3,668-byte `COCOSID2.BIN` on the 13 February disk is a different program, not
+yet identified (issue 23).

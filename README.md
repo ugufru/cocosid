@@ -38,9 +38,11 @@ His site describes three versions:
   Perl script turns the dump into CoCoSID pattern data, and his page walks
   through the steps.
 
-His February 2010 disk `REMDISK` (in `third-party/remdisk/`) holds larger
-`COCOSID2.BIN` and `COCOSID3.BIN` builds that have not been examined yet
-(issue 22).
+His February 2010 disk `REMDISK` holds the automatically converted COCOSID2,
+which plays Jeroen Tel's *Battle Valley* for seven minutes. It also shows
+that the COCOSID3 player already existed then, playing the same *R-Type*
+music, although the source package is dated 2012. See
+[`docs/remdisk.md`](docs/remdisk.md).
 
 COCOSID3, the latest, is rebuilt here from his source in `cocosid3/` (see
 [COCOSID3](#cocosid3) below).
@@ -110,11 +112,14 @@ Sources:
 | `tools/dis6809.py` | Code-tracing 6809 disassembler for LOADM binaries |
 | `tools/songdump.py` | Decodes the song data into `song/song.asm` |
 | `files/cocosid3/COCOSID3.BIN` | COCOSID3 (*R-Type*, CoCo 3), extracted from the author's 2012 texture demo disk |
+| `files/remdisk/` | `COCOSID2.BIN` (*Battle Valley*) and `COCOSID3.BIN` (*R-Type*), extracted from the author's February 2010 disk |
 | `cocosid3/` | COCOSID3 rebuilt from the author's source, with its song recovered from the binary; see its README |
 | `tools/cid3dump.py` | Recovers COCOSID3's song files from the binary |
 | `tools/cocosid3_lwasm.py` | Makes the author's COCOSID3 source build with lwasm |
 | `tools/decb_cmp.py` | Compares what two LOADM binaries load into memory |
+| `tools/sid_match.py` | Checks a binary's song data against a SIDDUMP dump of a `.sid` |
 | `docs/coco3-vs-coco2.md` | What changed between the CoCo 3 build and this CoCo 2 port |
+| `docs/remdisk.md` | The February 2010 COCOSID2 and COCOSID3 builds, and how they were identified |
 | `docs/sid-format.md` | The C64 `.sid` (PSID/RSID) format and how the author converted `.sid` tunes for CoCoSID |
 | `third-party/` | The author's original files (sources, disks), unmodified; see its README |
 | `LICENSE` | MIT, for this project's own work only (see License below) |
@@ -231,8 +236,10 @@ project follows the code.
 
 ## COCOSID3
 
-COCOSID3 (2012) is the author's last CoCoSID. It plays *R-Type* on a
-CoCo 3 and was converted automatically from a `.sid` dump. Its binary is
+COCOSID3 is the author's last CoCoSID. Its source package dates from 2012,
+but the same player is on his February 2010 disk (see
+[`docs/remdisk.md`](docs/remdisk.md)). It plays *R-Type* on a
+CoCo 3 and was converted automatically from a `.sid` dump. The 2012 binary is
 on his 2012 texture demo disk and his source is in `third-party/cocosid3/`,
 but the package lacks the three song files the source includes.
 
@@ -259,6 +266,7 @@ The license does not cover the CoCoSID program or anything derived from it.
 That means `COCOSID2.DSK`, everything in `files/`, the generated listings
 `cocosid.asm` and `song/song.asm`, the generated `cocosid3/cocosid3.asm` and
 `cocosid3/song/`, and `third-party/`. These remain the copyright of Rémi
-Veilleux. The music is Rob Hubbard's *Commando* and, in COCOSID3, Chris
-Hülsbeck and Ramiro Vaca's *R-Type*. They
+Veilleux. The music is Rob Hubbard's *Commando*, Jeroen Tel's *Battle
+Valley* (the REMDISK COCOSID2) and, in COCOSID3, Chris Hülsbeck and Ramiro
+Vaca's *R-Type*. They
 are included for study and preservation. `LICENSE` lists the exact scope.
