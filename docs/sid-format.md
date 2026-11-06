@@ -124,7 +124,8 @@ pattern format.
   section).
 - **COCOSID2 and COCOSID3** used the author's conversion toolchain, kept in
   `third-party/cocosid3/` and described on
-  [his archived CoCoSID3 page](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3).
+  [his CoCoSID3 page](https://sites.google.com/view/rveilleux/coco3home/rems-cocosid3)
+  ([2014 archive](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3)).
   The steps:
 
 1. **Dump.** [SIDDUMP](https://github.com/cadaver/siddump) by Covert

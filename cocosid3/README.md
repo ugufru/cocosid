@@ -18,7 +18,7 @@ binary, and with them his source assembles to exactly the bytes in
 
 The song files keep the author's names. His source still calls the song
 "CRAZY COMETS" because he first tried that tune and kept the file names when
-he switched to *R-Type* (see his archived CoCoSID3 page, linked in
+he switched to *R-Type* (see his CoCoSID3 page, linked in
 `third-party/README.md`).
 
 ## Building and checking

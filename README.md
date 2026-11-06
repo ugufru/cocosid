@@ -38,6 +38,10 @@ His site describes three versions:
   Perl script turns the dump into CoCoSID pattern data, and his page walks
   through the steps.
 
+His February 2010 disk `REMDISK` (in `third-party/remdisk/`) holds larger
+`COCOSID2.BIN` and `COCOSID3.BIN` builds that have not been examined yet
+(issue 22).
+
 COCOSID3, the latest, is rebuilt here from his source in `cocosid3/` (see
 [COCOSID3](#cocosid3) below).
 
@@ -72,14 +76,19 @@ COCOSID3, the latest, is rebuilt here from his source in `cocosid3/` (see
 The author's site carries "Copyright (c) 2010 Remi Veilleux", and the source
 has no license statement. His original files are kept unmodified in
 `third-party/` with their provenance: this program's source and listing,
-the CoCo 3 source and demo disk, the COCOSID3 source and conversion
-script, and his 2012 texture-mapping demo disk.
+the CoCo 3 source and demo disk, his February 2010 `REMDISK`, the COCOSID3
+source and conversion script, and his 2012 texture-mapping demo disk.
 
 Sources:
 
 - Color Computer Archive, [Disks/Demos](https://colorcomputerarchive.com/repo/Disks/Demos/):
   "CocoSiD (Remz) (Coco 2).zip" and "CocoSiD (Remz) (Coco 3).zip"
-- Rémi Veilleux, "Rem's CoCo 3" (archived):
+- Rémi Veilleux, "Rem's CoCo 3" (live):
+  [home page](https://sites.google.com/view/rveilleux/coco3home),
+  [demo files and descriptions](https://sites.google.com/view/rveilleux/coco3home/rems-coco-3-files),
+  [CoCoSID3 source and conversion guide](https://sites.google.com/view/rveilleux/coco3home/rems-cocosid3),
+  [YouTube demos](https://sites.google.com/view/rveilleux/coco3home/coco3youtube)
+- The same site at its old address (archived):
   [home page](https://web.archive.org/web/20120204000700/http://sites.google.com/site/rveilleux/coco3home),
   [demo files and descriptions](https://web.archive.org/web/20160823232904/https://sites.google.com/site/rveilleux/coco3home/rems-coco-3-files),
   [CoCoSID3 source and conversion guide](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3)

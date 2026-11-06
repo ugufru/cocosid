@@ -9,8 +9,8 @@ repository. The author's site says "Copyright (c) 2010 Remi Veilleux"
 (2012 on later pages), and none of the files carries a license. They are
 here for reference and preservation.
 
-All files were retrieved on 2026-10-30. The SHA-256 is of the zip as
-downloaded. `.gitattributes` marks this folder `-text`, so git never
+All files were retrieved on 2026-10-30, except `remdisk/` (2026-11-05). The
+SHA-256 is of the zip as downloaded. `.gitattributes` marks this folder `-text`, so git never
 rewrites line endings: several files use CRLF.
 
 ## `cocosid-coco2/`: CoCoSID for the CoCo 2
@@ -51,7 +51,12 @@ From the author's CoCoSID3 page, via the Wayback Machine:
 [`cocosid3.zip`](https://web.archive.org/web/20201011235912/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3/cocosid3.zip?attredirects=0&d=1)
 (SHA-256 `a8e266aa2a61cecc156371e7450c2e18faf4bd368d03ebcfe3428a29437fd220`).
 The page itself, with his step-by-step conversion guide, is
-[archived too](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3).
+[live](https://sites.google.com/view/rveilleux/coco3home/rems-cocosid3) and
+[archived](https://web.archive.org/web/20140814204357/https://sites.google.com/site/rveilleux/coco3home/rems-cocosid3).
+The live page links
+[its own copy of the zip](https://drive.google.com/open?id=1jAWfRAuKwMvFoRLSXIbWK7LSnyfDMaDT)
+on Google Drive. That copy asked for a sign-in when fetched anonymously on
+2026-11-05, so it has not been compared with this one.
 
 | File | Date | What it is |
 |---|---|---|
@@ -76,6 +81,8 @@ Left out, because they are not the author's work:
 From the author's files page, via the Wayback Machine:
 [`REM_TEXTURE_DEMO.zip`](https://web.archive.org/web/20201011235904/https://sites.google.com/site/rveilleux/coco3home/rems-coco-3-files/REM_TEXTURE_DEMO.zip?attredirects=0&d=1)
 (SHA-256 `9c33576a036fa18150b2fbdabdc27991d34a17016091570f56206d6dfff2782e`).
+The [copy on his live files page](https://drive.google.com/open?id=142o2mnydN5n5tDLl9ZLYXFz9XKhOUuaY)
+has the same hash (checked 2026-11-05).
 
 | File | Date | What it is |
 |---|---|---|
@@ -84,10 +91,19 @@ From the author's files page, via the Wayback Machine:
 `COCOSID3.BIN` is extracted to `files/cocosid3/`. The top-level `cocosid3/`
 folder rebuilds it from his `cocosid3.asm` (the `cocosid3/` section above).
 
-## Not found
+## `remdisk/`: February 2010 CoCo 3 demo disk
 
-- The automatically converted COCOSID2 that the author's site describes.
-  The `COCOSID2.BIN` on his 2010 disk is a 3,668-byte CoCo 3 program, which
-  does not fit "takes more memory than the previous version" (issue #9).
-- His original 2010 `REMDISK.zip` and his YouTube demo page: no archived
-  copies.
+From the author's
+[live files page](https://sites.google.com/view/rveilleux/coco3home/rems-coco-3-files):
+[`RemDisk.zip`](https://drive.google.com/open?id=1l68GnlV6DBn3PVu6JpaoheX_iwL0JC6x)
+(SHA-256 `933c3248bd123f24bf0aeac71349bb89341144a58186aa354d342c01c3fb02e7`).
+
+| File | Date | What it is |
+|---|---|---|
+| `REMDISK.dsk` | 2010-02-21 | CoCo 3 disk with `COCOSID3.BIN` (11,577 bytes), `COCOSID2.BIN` (29,056 bytes), `COCOSID.BIN` (22,203 bytes), `SCALE.BIN`, `SPRITE.BIN` and `WOLF.BIN` |
+
+Its `COCOSID2.BIN` is probably the automatically converted version his site
+describes: it has the same load layout as the 2012 `COCOSID3.BIN`, and the
+3,668-byte `COCOSID2.BIN` on the 13 February disk does not fit "takes more
+memory than the previous version". This comes from the file structure only.
+The programs have not been run or disassembled yet (issue 22).
